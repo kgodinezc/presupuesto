@@ -26,6 +26,7 @@ var CONFIG = {
 
 var COLUMNAS = ['id', 'fecha', 'tipo', 'categoria', 'descripcion', 'comercio', 'monto', 'moneda',
   'montoCRC', 'tarjeta', 'ciudad', 'referencia', 'autorizacion', 'fuente', 'nota', 'excluir'];
+var COLUMNAS_TEXTO = ['id', 'fecha', 'tarjeta', 'referencia', 'autorizacion'];
 
 // ---------------------------------------------------------------- Menú
 
@@ -129,7 +130,13 @@ function importarCorreos(dias) {
   if (nuevos.length) {
     nuevos.sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
     var filas = nuevos.map(function (m) { return filaDe_(m, tc); });
-    hoja.getRange(hoja.getLastRow() + 1, 1, filas.length, COLUMNAS.length).setValues(filas);
+    var filaInicio = hoja.getLastRow() + 1;
+    // Texto plano para que Sheets no convierta ids, fechas ni referencias
+    // (p. ej. "092326364623" perdería el cero inicial).
+    COLUMNAS_TEXTO.forEach(function (c) {
+      hoja.getRange(filaInicio, COLUMNAS.indexOf(c) + 1, filas.length, 1).setNumberFormat('@');
+    });
+    hoja.getRange(filaInicio, 1, filas.length, COLUMNAS.length).setValues(filas);
     actualizarResumen();
   }
   Logger.log('Movimientos nuevos: ' + nuevos.length);
@@ -213,6 +220,12 @@ function doGet(e) {
       presupuestos: leerPresupuestos_(ss),
       tipoCambio: leerTipoCambio_(ss)
     };
+  }
+  // JSONP (?callback=fn): permite leer los datos desde otro dominio sin depender de CORS.
+  var callback = e && e.parameter && e.parameter.callback;
+  if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + JSON.stringify(salida) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
   }
   return ContentService.createTextOutput(JSON.stringify(salida))
     .setMimeType(ContentService.MimeType.JSON);
