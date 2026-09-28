@@ -374,8 +374,7 @@
     guardar();
     if (!url || !token) { aviso('Ingrese la URL y el token.'); return; }
     $('#sync-estado').textContent = 'Sincronizando…';
-    fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'token=' + encodeURIComponent(token))
-      .then(function (r) { return r.json(); })
+    obtenerDatosGoogle(url, token)
       .then(function (datos) {
         if (datos.error) throw new Error(datos.error);
         var n = fusionar(datos.movimientos || []);
@@ -384,9 +383,37 @@
         $('#sync-estado').textContent = '✅ ' + n + ' movimientos nuevos (' + new Date().toLocaleString('es-CR') + ').';
       })
       .catch(function (err) {
-        $('#sync-estado').textContent = '❌ No se pudo sincronizar: ' + err.message;
+        $('#sync-estado').innerHTML = '❌ No se pudo sincronizar: ' + esc(err.message) +
+          '<br>Revise: (1) la URL termina en <b>/exec</b>; (2) la implementación tiene acceso ' +
+          '<b>“Cualquier persona”</b>; (3) si cambió el código, cree una <b>versión nueva</b> de la implementación. ' +
+          'Prueba rápida: abra <a target="_blank" rel="noopener" href="' + esc(url) + '?token=' +
+          encodeURIComponent(token) + '">este enlace</a>; debería mostrar texto que empieza con {"generado".';
       });
   });
+
+  /** Pide los datos a Apps Script: primero con fetch y, si el navegador lo bloquea, con JSONP. */
+  function obtenerDatosGoogle(url, token) {
+    var base = url + (url.indexOf('?') < 0 ? '?' : '&') + 'token=' + encodeURIComponent(token);
+    return fetch(base)
+      .then(function (r) { return r.json(); })
+      .catch(function () { return jsonp(base); });
+  }
+
+  function jsonp(url) {
+    return new Promise(function (resolve, reject) {
+      var nombre = 'presupuestoCb' + Date.now();
+      var s = document.createElement('script');
+      var fin = function () { delete window[nombre]; s.remove(); clearTimeout(t); };
+      var t = setTimeout(function () { fin(); reject(new Error('Google no respondió')); }, 20000);
+      window[nombre] = function (datos) { fin(); resolve(datos); };
+      s.onerror = function () {
+        fin();
+        reject(new Error('Google rechazó la solicitud (acceso de la implementación o código desactualizado)'));
+      };
+      s.src = url + '&callback=' + nombre;
+      document.head.appendChild(s);
+    });
+  }
 
   $('#tipo-cambio').addEventListener('change', function (e) {
     var v = parseFloat(e.target.value);

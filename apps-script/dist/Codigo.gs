@@ -774,6 +774,12 @@ function doGet(e) {
       tipoCambio: leerTipoCambio_(ss)
     };
   }
+  // JSONP (?callback=fn): permite leer los datos desde otro dominio sin depender de CORS.
+  var callback = e && e.parameter && e.parameter.callback;
+  if (callback && /^[A-Za-z_$][\w$.]{0,60}$/.test(callback)) {
+    return ContentService.createTextOutput(callback + '(' + JSON.stringify(salida) + ');')
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   return ContentService.createTextOutput(JSON.stringify(salida))
     .setMimeType(ContentService.MimeType.JSON);
 }
