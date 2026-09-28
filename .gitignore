@@ -1,0 +1,9 @@
+# Datos financieros personales: NUNCA subir al repositorio (es público)
+datos/
+*.respaldo.json
+presupuesto-respaldo-*.json
+movimientos.csv
+
+node_modules/
+.DS_Store
+.clasp.json

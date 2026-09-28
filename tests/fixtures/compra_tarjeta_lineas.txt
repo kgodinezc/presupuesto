@@ -1,0 +1,20 @@
+BAC
+Hola CLIENTE DE PRUEBA
+A continuación le detallamos la transacción realizada:
+Comercio:
+AMAZON MARKETPLACE
+Ciudad y país:
+SEATTLE, Pais no Definido
+Fecha:
+Sep 20, 2026 , 21:05
+VISA:
+************1234
+Autorización:
+333333
+Referencia:
+000000000001
+Tipo de Transacción:
+COMPRA
+Monto:
+USD 42.10
+¿Tiene dudas sobre esta transacción?

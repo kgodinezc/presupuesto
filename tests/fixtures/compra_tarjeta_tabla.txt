@@ -1,0 +1,19 @@
+ BAC
+
+| |
+| | | |
+|---|---|---|
+| | ## Hola CLIENTE DE PRUEBA ##### A continuación le detallamos la transacción realizada: | |
+
+| | |
+|---|---|
+| Comercio: | AUTO MERCADO SUCURSAL |
+| Ciudad y país: | SAN JOSE, Costa Rica |
+| Fecha: | Sep 28, 2026, 08:15 |
+| MASTER: | ************0000 |
+| Autorización: | 111111 |
+| Referencia: | 22222222 |
+| Tipo de Transacción: | COMPRA |
+| Monto: | CRC 4,125.50 |
+
+| | Este comprobante de su transacción hace referencia al artículo 18 y 19 del reglamento del sistema de tarjetas de pago establecidos por el BCCR. |

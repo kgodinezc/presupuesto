@@ -1,0 +1,5 @@
+ BAC San José
+
+| Notificación de Transferencia SINPE |
+
+| Notificación de Transferencia SINPE Hola CLIENTE DE PRUEBA : BAC le comunica que recibió una transferencia SINPE con el número de referencia 2026092573931000000000001, el día 25/09/2026 a las 07:30:00 p.m. horas, acreditando la cuenta IBAN CR00XXXXXXXXXXXXXX0000 un monto de 500,000.00 Colones, por concepto de PLANILLA EMPRESA EJEMPLO. Servicio para TRE de pagos: CLIENTE DE PRUEBA. Muchas gracias. Notas Importantes: La información mostrada en este comprobante no constituye un documento con validez legal. |

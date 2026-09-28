@@ -1,0 +1,6 @@
+A continuación le detallamos la transacción realizada:
+| Comercio: | AMAZON.COM |
+| Fecha: | Sep 15, 2026 , 12:18 |
+| MASTER: | ************0000 |
+| Tipo de Transacción: | COMPRA |
+| Monto: | USD .00 |

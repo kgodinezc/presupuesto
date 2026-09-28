@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Presupuesto Familiar</title>
+  <meta name="description" content="Control de ingresos y gastos familiares a partir de las notificaciones del banco.">
+  <link rel="stylesheet" href="css/estilos.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="marca">💰 <span>Presupuesto Familiar</span></div>
+    <label class="selector-mes">
+      <span class="sr">Mes</span>
+      <select id="mes"></select>
+    </label>
+  </header>
+
+  <nav class="pestanas" role="tablist">
+    <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
+    <button role="tab" data-tab="movimientos">Movimientos</button>
+    <button role="tab" data-tab="agregar">Agregar</button>
+    <button role="tab" data-tab="presupuesto">Presupuesto</button>
+    <button role="tab" data-tab="datos">Datos</button>
+  </nav>
+
+  <main>
+    <!-- RESUMEN -->
+    <section id="tab-resumen" class="tab activa">
+      <div id="vacio" class="tarjeta aviso" hidden>
+        <h2>Bienvenido 👋</h2>
+        <p>Todavía no hay movimientos. Vaya a <b>Datos</b> para sincronizar con su hoja de Google
+          (que lee automáticamente los correos del banco) o importar un archivo JSON.</p>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div id="alertas"></div>
+      <div class="rejilla">
+        <div class="tarjeta">
+          <h2>Gastos por categoría <small>vs. presupuesto</small></h2>
+          <div id="categorias"></div>
+        </div>
+        <div class="tarjeta">
+          <h2>Ingresos del mes</h2>
+          <div id="ingresos"></div>
+          <h2 class="mt">Tendencia mensual</h2>
+          <div id="tendencia"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MOVIMIENTOS -->
+    <section id="tab-movimientos" class="tab">
+      <div class="tarjeta">
+        <div class="filtros">
+          <input id="f-texto" type="search" placeholder="Buscar comercio o descripción…">
+          <select id="f-tipo">
+            <option value="">Todos los tipos</option>
+            <option value="gasto">Gastos</option>
+            <option value="ingreso">Ingresos</option>
+            <option value="transferencia">Transferencias</option>
+            <option value="reembolso">Reembolsos</option>
+          </select>
+          <select id="f-categoria"><option value="">Todas las categorías</option></select>
+        </div>
+        <p class="ayuda">Cambie la categoría de un movimiento y la app recordará ese comercio para el futuro.</p>
+        <div class="tabla-envoltura">
+          <table class="tabla">
+            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
+            <tbody id="lista"></tbody>
+          </table>
+        </div>
+        <p id="total-filtro" class="ayuda"></p>
+      </div>
+    </section>
+
+    <!-- AGREGAR -->
+    <section id="tab-agregar" class="tab">
+      <div class="rejilla">
+        <form id="form-manual" class="tarjeta formulario">
+          <h2>Movimiento manual</h2>
+          <p class="ayuda">Para efectivo, ingresos que no llegan por correo, diezmos, etc.</p>
+          <label>Tipo
+            <select name="tipo">
+              <option value="gasto">Gasto</option>
+              <option value="ingreso">Ingreso</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+          </label>
+          <label>Fecha <input name="fecha" type="date" required></label>
+          <label>Descripción <input name="descripcion" required placeholder="Ej.: Pago de alquiler"></label>
+          <label>Categoría <select name="categoria"></select></label>
+          <div class="fila">
+            <label>Monto <input name="monto" type="number" step="0.01" min="0" required></label>
+            <label>Moneda
+              <select name="moneda"><option>CRC</option><option>USD</option></select>
+            </label>
+          </div>
+          <button class="primario">Agregar</button>
+        </form>
+
+        <div class="tarjeta formulario">
+          <h2>Pegar un correo del banco</h2>
+          <p class="ayuda">Copie el texto de una notificación de BAC (compra, SINPE o transferencia) y péguelo aquí.</p>
+          <textarea id="correo-texto" rows="9" placeholder="Comercio: … Monto: CRC 2,350.00 …"></textarea>
+          <button id="btn-parsear" class="primario">Leer correo</button>
+          <div id="correo-resultado"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PRESUPUESTO -->
+    <section id="tab-presupuesto" class="tab">
+      <form id="form-presupuesto" class="tarjeta formulario">
+        <h2>Presupuesto mensual por categoría (₡)</h2>
+        <div id="lista-presupuesto" class="lista-presupuesto"></div>
+        <p class="ayuda" id="total-presupuesto"></p>
+        <button class="primario">Guardar presupuesto</button>
+      </form>
+    </section>
+
+    <!-- DATOS -->
+    <section id="tab-datos" class="tab">
+      <div class="rejilla">
+        <form id="form-sync" class="tarjeta formulario">
+          <h2>Sincronizar con Google (correos del banco)</h2>
+          <p class="ayuda">Pegue la URL de la aplicación web de Apps Script y su token
+            (ver <a href="https://github.com/kgodinezc/presupuesto#readme" target="_blank" rel="noopener">instrucciones</a>).
+            Se guardan solo en este navegador.</p>
+          <label>URL de la aplicación web <input name="url" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
+          <label>Token <input name="token" type="password" autocomplete="off"></label>
+          <button class="primario">Sincronizar ahora</button>
+          <p id="sync-estado" class="ayuda"></p>
+        </form>
+
+        <div class="tarjeta formulario">
+          <h2>Ajustes y respaldo</h2>
+          <label>Tipo de cambio (₡ por US$)
+            <input id="tipo-cambio" type="number" step="0.01" min="1">
+          </label>
+          <label>Importar archivo JSON (respaldo o exportado)
+            <input id="archivo" type="file" accept=".json,application/json">
+          </label>
+          <div class="botones">
+            <button id="btn-exportar-json" type="button">Exportar respaldo (JSON)</button>
+            <button id="btn-exportar-csv" type="button">Exportar movimientos (CSV)</button>
+            <button id="btn-borrar" type="button" class="peligro">Borrar todos los datos</button>
+          </div>
+          <p class="ayuda">Los datos se guardan únicamente en este navegador (localStorage). Exporte un respaldo con regularidad.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/core/parser.js"></script>
+  <script src="js/core/categorias.js"></script>
+  <script src="js/core/resumen.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
