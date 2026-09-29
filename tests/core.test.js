@@ -102,6 +102,13 @@ test('categorización automática de comercios típicos', () => {
   assert.equal(c('CROSSFIT CENTRO'), 'Deporte');
   assert.equal(c('LIBRERIA INTERNACIONAL'), 'Educación y libros');
   assert.equal(c('EXN*CLIENTE*PRUEBA'), 'Ahorro e inversión');
+  assert.equal(c('DEBITO COMPASS'), 'Transporte y vehículo');
+  assert.equal(c('PARQUEO CENTRO COMERC COMPAS'), 'Transporte y vehículo');
+  assert.equal(c('C.N.F.L.PAGUELO 000000'), 'Servicios del hogar');
+  assert.equal(c('MAXIPALI SUCURSAL'), 'Supermercado');
+  assert.equal(c('FARMAVALUE CENTRO'), 'Salud');
+  assert.equal(c('DLC*ARCOS DORADOS'), 'Restaurantes y comidas');
+  assert.equal(c('IVA -Spotify P000000000'), 'Suscripciones digitales');
   assert.equal(c('COMERCIO DESCONOCIDO'), 'Otros');
 });
 

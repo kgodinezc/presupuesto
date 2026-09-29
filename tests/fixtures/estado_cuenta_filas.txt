@@ -1,0 +1,58 @@
+CLIENTE DE PRUEBA
+TARJETA DE CREDITO
+Marca de tarjeta: | VISA | Para | presentar | un | reclamo
+Número de cuenta: | ************1111
+Fecha de corte: | 6-SET-26 | oficiales y se la solicitará de forma digital.
+Fecha límite pago de contado: | 21-SET-26
+Mes y año del estado de cuenta: | SET-2026
+21-SET-26 | PAGO DE CONTADO | En Colones | 3,400.00 | En Dólares | 0.00
+Total pago mínimo | 3,400.00 | 0.00 | Total pago de contado | 3,400.00 | 0.00
+Saldo Anterior 7-AGO-26 | 10,000.00 | 0.00 | 0.00 | 0.00
+A) Detalle de pago del periodo
+************1111
+0807000000001 | 7-AGO-26 | PAGO RECIBIDO...136 | 10,000.00-
+Total de pagos recibidos | 10,000.00- | 0.00 | 0.00 | 0.00
+B) Detalle de compras del periodo
+************1111 | CLIENTE
+081100000001 | 8-AGO-26 | DEBITO COMPASS | CRC | 1,200.00
+081100000002 | 11-AGO-26 | PARQUEO CENTRO COMERC C | OMPAS | CRC | 2,200.00
+Total de compras del periodo (del 7-AGO-26 al 6-SET-26) | 3,400.00 | 0.00
+C) Detalle de intereses
+Total por concepto de intereses | 0.00 | 0.00
+Saldos al corte por rubro
+TARJETA DE CREDITO
+Marca de tarjeta: | MASTER CARD | Para | presentar | un | reclamo
+Número de cuenta: | ************2222
+Fecha de corte: | 6-SET-26 | oficiales
+Mes y año del estado de cuenta: | SET-2026
+21-SET-26 | PAGO DE CONTADO | En Colones | 60,995.00 | En Dólares | 25.20
+Total pago mínimo | 9,000.00 | 5.00 | Total pago de contado | 60,995.00 | 25.20
+Saldo Anterior 7-AGO-26 | 500,000.00 | 0.00 | 50.00 | 0.00
+A) Detalle de pago del periodo
+************2222
+0807000000002 | 7-AGO-26 | PAGO RECIBIDO...136 | 450,000.00- | 1,000.00-
+0807000000002 | 7-AGO-26 | PAGO RECIBIDO...136 | 50.00- | 0.10-
+0829000000003 | 29-AGO-26 | PAGO RECIBIDO...136 | 50,000.00-
+Total de pagos recibidos | 500,000.00- | 1,000.00- | 50.00- | 0.10-
+B) Detalle de compras del periodo
+************2222 | CLIENTE
+080999100801 | 5-AGO-26 | SUPERMERCADO EJEMPLO C_SAN | JOSE_ CRI | CRC | 10,000.00
+081299100801 | 10-AGO-26 | RESTAURANTE DE PRUEBA NOSAN | JOSE_ CRI | CRC | 8,500.00
+081299100801 | 10-AGO-26 | RESTAURANTE DE PRUEBA NOSAN | JOSE_ CRI | CRC | 8,500.00
+081699100801 | 15-AGO-26 | SERVICIO DIGITAL*X_ New | York_ GBR | USD | 99.00
+081699100801 | 15-AGO-26 | SERVICIO DIGITAL*X_ New | York_ GBR | USD | 99.00-
+081980008505 | 19-AGO-26 | LIBERTY SERV FIJO 1234567 | CRC | 40,000.00
+090499100801 | 3-SET-26 | Spotify P000000000_ Sto | ckholm_ SWE | USD | 11.99
+Total de compras del periodo (del 7-AGO-26 al 6-SET-26) | 67,000.00 | 11.99
+Página 2 de 5
+B) Detalle de compras del periodo
+C) Detalle de intereses
+Monto por intereses corrientes del periodo actual | 1,200.00 | 0.10
+Total por concepto de intereses | 200.00 | 0.00
+D) Detalle de otros cargos
+************2222 | CLIENTE
+0904101217952 | 3-SET-26 | IVA -Spotify P000000000 | Stockholm | USD | 1.56
+Total por concepto otros cargos | 0.00 | 1.56
+G) Otras notas de crédito
+No se registran transacciones en el periodo.
+Saldos al corte por rubro

@@ -14,7 +14,8 @@
       movimientos: [],
       presupuestos: P.presupuestosPredeterminados(),
       reglas: {},
-      ajustes: { tipoCambio: 505, url: '', token: '' },
+      ajustes: { tipoCambio: 505, url: '', token: '', diaCorte: 0 },
+      estadosCuenta: [],
       mes: ''
     };
   }
@@ -30,6 +31,7 @@
           presupuestos: e.presupuestos || base.presupuestos,
           reglas: e.reglas || {},
           ajustes: Object.assign(base.ajustes, e.ajustes || {}),
+          estadosCuenta: e.estadosCuenta || [],
           mes: e.mes || ''
         };
       }
@@ -56,13 +58,16 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  function nombreMes(mes) {
-    var partes = mes.split('-');
-    var d = new Date(+partes[0], +partes[1] - 1, 1);
-    var s = d.toLocaleDateString('es-CR', { month: 'long', year: 'numeric' });
-    return s.charAt(0).toUpperCase() + s.slice(1);
+  function diaCorte() { return +estado.ajustes.diaCorte || 0; }
+  function nombrePeriodo(clave) { return P.etiquetaPeriodo(clave, diaCorte()); }
+  function periodoDeFecha(fecha) { return P.periodoDe(fecha, diaCorte()); }
+  function hoyISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
-  function opciones() { return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos }; }
+  function opciones() {
+    return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos, diaCorte: diaCorte() };
+  }
   function categoriasPara(tipo) {
     if (tipo === 'ingreso') return P.CATEGORIAS_INGRESO;
     if (tipo === 'transferencia') return [P.CATEGORIA_TRANSFERENCIA];
@@ -129,15 +134,14 @@
   // ------------------------------------------------------------ Render: Resumen
 
   function renderMeses() {
-    var meses = P.mesesDisponibles(estado.movimientos);
-    var hoy = new Date();
-    var actual = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0');
-    if (meses.indexOf(actual) < 0) meses.unshift(actual);
+    var meses = P.mesesDisponibles(estado.movimientos, diaCorte());
+    var actual = periodoDeFecha(hoyISO());
+    if (meses.indexOf(actual) < 0) { meses.push(actual); meses.sort().reverse(); }
     if (!estado.mes || meses.indexOf(estado.mes) < 0) {
-      estado.mes = P.mesesDisponibles(estado.movimientos)[0] || actual;
+      estado.mes = P.mesesDisponibles(estado.movimientos, diaCorte())[0] || actual;
     }
     $('#mes').innerHTML = meses.map(function (m) {
-      return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombreMes(m) + '</option>';
+      return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombrePeriodo(m) + '</option>';
     }).join('');
   }
 
@@ -148,7 +152,7 @@
     var kpis = [
       { e: 'Ingresos', v: crc(r.ingresos), c: 'pos', s: r.porIngreso.length + ' fuente(s)' },
       { e: 'Gastos', v: crc(r.gastos), c: 'neg', s: r.presupuestoTotal ? pct(r.gastos / r.presupuestoTotal) + ' del presupuesto' : '' },
-      { e: 'Balance del mes', v: crc(r.balance), c: r.balance >= 0 ? 'pos' : 'neg', s: 'Ingresos − gastos − ahorro' },
+      { e: 'Balance del periodo', v: crc(r.balance), c: r.balance >= 0 ? 'pos' : 'neg', s: 'Ingresos − gastos − ahorro' },
       { e: 'Tasa de ahorro', v: pct(r.tasaAhorro), c: (r.tasaAhorro || 0) >= 0.1 ? 'pos' : 'neg', s: 'Meta sugerida: 10–20%' }
     ];
     if (r.ahorro) kpis.push({ e: 'Ahorro e inversión', v: crc(r.ahorro), c: '', s: 'Separado del gasto' });
@@ -189,10 +193,10 @@
     if (!serie.length) { $('#tendencia').innerHTML = ''; return; }
     var max = Math.max.apply(null, serie.map(function (s) { return Math.max(s.ingresos, s.gastos); })) || 1;
     $('#tendencia').innerHTML = '<div class="tendencia">' + serie.map(function (s) {
-      return '<div class="mes" title="' + nombreMes(s.mes) + ': ingresos ' + crc(s.ingresos) + ', gastos ' + crc(s.gastos) + '">' +
+      return '<div class="mes" title="' + nombrePeriodo(s.mes) + ': ingresos ' + crc(s.ingresos) + ', gastos ' + crc(s.gastos) + '">' +
         '<div class="barras"><div class="b i" style="height:' + (s.ingresos / max * 100) + '%"></div>' +
         '<div class="b g" style="height:' + (s.gastos / max * 100) + '%"></div></div>' +
-        '<span class="lbl">' + nombreMes(s.mes).slice(0, 3) + '</span></div>';
+        '<span class="lbl">' + P.etiquetaPeriodo(s.mes, 0).slice(0, 3) + '</span></div>';
     }).join('') + '</div><div class="leyenda"><span><i style="background:var(--ingreso)"></i>Ingresos</span>' +
       '<span><i style="background:var(--gasto)"></i>Gastos</span></div>';
   }
@@ -213,7 +217,7 @@
     var tipo = $('#f-tipo').value;
     var cat = $('#f-categoria').value;
     var lista = estado.movimientos.filter(function (m) {
-      if (String(m.fecha).slice(0, 7) !== estado.mes) return false;
+      if (P.periodoMovimiento(m, diaCorte()) !== estado.mes) return false;
       if (tipo && m.tipo !== tipo) return false;
       if (cat && m.categoria !== cat) return false;
       if (texto && P.normalizarTexto((m.descripcion || '') + ' ' + (m.comercio || '')).indexOf(texto) < 0) return false;
@@ -274,6 +278,7 @@
     f.url.value = estado.ajustes.url || '';
     f.token.value = estado.ajustes.token || '';
     $('#tipo-cambio').value = estado.ajustes.tipoCambio;
+    $('#dia-corte').value = diaCorte();
   }
 
   function render() {
@@ -281,6 +286,7 @@
     renderResumen();
     renderFiltroCategorias();
     renderMovimientos();
+    renderEstadoCuenta();
   }
 
   // ------------------------------------------------------------ Eventos
@@ -333,7 +339,7 @@
       editado: true
     };
     fusionar([mov]);
-    estado.mes = f.fecha.value.slice(0, 7);
+    estado.mes = periodoDeFecha(f.fecha.value);
     guardar(); render();
     f.descripcion.value = ''; f.monto.value = '';
     aviso('Movimiento agregado.');
@@ -349,7 +355,7 @@
     // id estable para no duplicar si se pega dos veces
     mov.id = 'pegado-' + [mov.fecha, mov.comercio, mov.monto, mov.autorizacion || mov.referencia].join('|');
     var nuevos = fusionar([mov]);
-    estado.mes = mov.fecha.slice(0, 7);
+    estado.mes = periodoDeFecha(mov.fecha);
     guardar(); render();
     $('#correo-resultado').innerHTML = '<p class="ayuda">' + (nuevos ? '✅ Agregado: ' : 'Ya existía: ') +
       esc(mov.descripcion) + ' · ' + montoOriginal(mov) + ' · ' + esc(mov.categoria) + '</p>';
@@ -379,6 +385,7 @@
         if (datos.error) throw new Error(datos.error);
         var n = fusionar(datos.movimientos || []);
         if (datos.tipoCambio) estado.ajustes.tipoCambio = datos.tipoCambio;
+        if (datos.diaCorte > 0) estado.ajustes.diaCorte = datos.diaCorte;
         guardar(); render(); renderDatos();
         $('#sync-estado').textContent = '✅ ' + n + ' movimientos nuevos (' + new Date().toLocaleString('es-CR') + ').';
       })
@@ -420,6 +427,14 @@
     if (v > 0) { estado.ajustes.tipoCambio = v; guardar(); render(); aviso('Tipo de cambio actualizado.'); }
   });
 
+  $('#dia-corte').addEventListener('change', function (e) {
+    var v = parseInt(e.target.value, 10);
+    if (v >= 0 && v <= 31) {
+      estado.ajustes.diaCorte = v; estado.mes = '';
+      guardar(); render(); aviso(v ? 'Periodos del ' + (v + 1) + ' al ' + v + ' de cada mes.' : 'Periodos por mes calendario.');
+    }
+  });
+
   $('#archivo').addEventListener('change', function (e) {
     var archivo = e.target.files[0];
     if (!archivo) return;
@@ -430,6 +445,10 @@
       if (datos.presupuestos) estado.presupuestos = Object.assign(estado.presupuestos, datos.presupuestos);
       if (datos.reglas) estado.reglas = Object.assign(estado.reglas, datos.reglas);
       if (datos.tipoCambio) estado.ajustes.tipoCambio = datos.tipoCambio;
+      if (datos.diaCorte != null) estado.ajustes.diaCorte = datos.diaCorte;
+      if (Array.isArray(datos.estadosCuenta)) {
+        datos.estadosCuenta.forEach(function (ec) { guardarEstadoCuenta(ec); });
+      }
       estado.mes = '';
       guardar(); render(); renderPresupuesto(); renderDatos();
       aviso('Importados ' + n + ' movimientos nuevos.');
@@ -443,17 +462,22 @@
       movimientos: estado.movimientos,
       presupuestos: estado.presupuestos,
       reglas: estado.reglas,
-      tipoCambio: estado.ajustes.tipoCambio
+      tipoCambio: estado.ajustes.tipoCambio,
+      diaCorte: diaCorte(),
+      estadosCuenta: estado.estadosCuenta
     };
     descargar('presupuesto-respaldo-' + new Date().toISOString().slice(0, 10) + '.json',
       JSON.stringify(respaldo, null, 2), 'application/json');
   });
 
   $('#btn-exportar-csv').addEventListener('click', function () {
-    var cols = ['fecha', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
+    var cols = ['fecha', 'periodo', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
     var tc = estado.ajustes.tipoCambio;
     var filas = [cols.join(',')].concat(estado.movimientos.map(function (m) {
-      var fila = Object.assign({}, m, { montoCRC: Math.round(P.aColones(m, tc) * 100) / 100 });
+      var fila = Object.assign({}, m, {
+        montoCRC: Math.round(P.aColones(m, tc) * 100) / 100,
+        periodo: P.periodoMovimiento(m, diaCorte())
+      });
       return cols.map(function (c) { return '"' + String(fila[c] == null ? '' : fila[c]).replace(/"/g, '""') + '"'; }).join(',');
     }));
     descargar('movimientos.csv', '﻿' + filas.join('\n'), 'text/csv');
@@ -463,6 +487,256 @@
     if (!confirm('Esto borra todos los movimientos, reglas y presupuesto de este navegador. ¿Continuar?')) return;
     estado = estadoInicial();
     guardar(); render(); renderPresupuesto(); renderDatos();
+  });
+
+  // ------------------------------------------------------------ Estado de cuenta (PDF)
+
+  var pdfPendiente = null;   // archivo esperando contraseña
+  var ecActual = '';         // clave del estado de cuenta mostrado
+
+  function cargarPdfJs() {
+    if (!cargarPdfJs.promesa) {
+      var base = new URL('vendor/pdfjs/', document.baseURI).href;
+      cargarPdfJs.promesa = import(base + 'pdf.min.mjs').then(function (pdfjs) {
+        pdfjs.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.mjs';
+        return pdfjs;
+      });
+    }
+    return cargarPdfJs.promesa;
+  }
+
+  /** Lee el PDF y devuelve sus filas de texto. */
+  function leerFilasPdf(archivo, clave) {
+    return Promise.all([cargarPdfJs(), archivo.arrayBuffer()]).then(function (r) {
+      var pdfjs = r[0];
+      return pdfjs.getDocument({ data: new Uint8Array(r[1]), password: clave || '' }).promise;
+    }).then(function (doc) {
+      var paginas = [];
+      for (var n = 1; n <= doc.numPages; n++) paginas.push(n);
+      return Promise.all(paginas.map(function (n) {
+        return doc.getPage(n).then(function (p) { return p.getTextContent(); }).then(function (tc) {
+          return tc.items.map(function (it) {
+            return { pagina: n, str: it.str, x: it.transform[4], y: it.transform[5] };
+          });
+        });
+      }));
+    }).then(function (porPagina) {
+      return P.agruparFilas([].concat.apply([], porPagina));
+    });
+  }
+
+  function guardarEstadoCuenta(ec) {
+    estado.estadosCuenta = estado.estadosCuenta.filter(function (x) {
+      return !(x.clave === ec.clave && x.tarjetas.map(function (t) { return t.tarjeta; }).join() ===
+        ec.tarjetas.map(function (t) { return t.tarjeta; }).join());
+    });
+    estado.estadosCuenta.push(ec);
+    estado.estadosCuenta.sort(function (a, b) { return a.clave < b.clave ? 1 : -1; });
+  }
+
+  function procesarPdf(archivo, clave) {
+    $('#ec-estado').textContent = 'Leyendo el estado de cuenta…';
+    leerFilasPdf(archivo, clave).then(function (filas) {
+      var ec = P.parsearEstadoCuenta(filas);
+      if (!ec.tarjetas.length || !ec.fechaCorte) {
+        throw new Error('No se reconoció un estado de cuenta de tarjeta de BAC en este PDF.');
+      }
+      ec.importado = new Date().toISOString();
+      guardarEstadoCuenta(ec);
+      ecActual = ec.clave;
+      pdfPendiente = null;
+      $('#ec-clave-envoltura').hidden = true;
+      $('#ec-clave').value = '';
+
+      var dia = +ec.fechaCorte.slice(8, 10);
+      var msj = '✅ Estado ' + ec.mesEstado + ' leído: ' + ec.tarjetas.length + ' tarjeta(s), corte ' +
+        ec.fechaCorte.split('-').reverse().join('/') + '.';
+      if (diaCorte() !== dia) {
+        estado.ajustes.diaCorte = dia;
+        msj += ' Los periodos ahora van del ' + (dia + 1) + ' al ' + dia + ' de cada mes, como su tarjeta.';
+      }
+      estado.mes = ec.clave;
+      guardar(); render(); renderDatos();
+      $('#ec-estado').textContent = msj;
+    }).catch(function (err) {
+      if (err && err.name === 'PasswordException') {
+        pdfPendiente = archivo;
+        $('#ec-clave-envoltura').hidden = false;
+        $('#ec-estado').textContent = clave ? '❌ Contraseña incorrecta.' : 'Este PDF tiene contraseña. Escríbala y presione Enter.';
+        $('#ec-clave').focus();
+        return;
+      }
+      $('#ec-estado').textContent = '❌ ' + (err && err.message || err);
+    });
+  }
+
+  function fmtMoneda(n, moneda) { return moneda === 'USD' ? fmtUSD.format(n || 0) : crc(n); }
+  function fmtDoble(v) {
+    return crc(v.CRC) + (v.USD ? ' + ' + fmtUSD.format(v.USD) : '');
+  }
+  function fechaCorta(f) { return String(f).slice(0, 10).split('-').reverse().slice(0, 2).join('/'); }
+
+  function renderEstadoCuenta() {
+    var cont = $('#ec-resultado');
+    var lista = estado.estadosCuenta;
+    $('#ec-selector-envoltura').hidden = !lista.length;
+    if (!lista.length) { cont.innerHTML = ''; return; }
+    if (!ecActual || !lista.some(function (x) { return x.clave === ecActual; })) ecActual = lista[0].clave;
+    $('#ec-selector').innerHTML = lista.map(function (x) {
+      return '<option value="' + x.clave + '"' + (x.clave === ecActual ? ' selected' : '') + '>' +
+        esc(x.mesEstado) + ' · ' + esc(P.etiquetaPeriodo(x.clave, +x.fechaCorte.slice(8, 10))) + '</option>';
+    }).join('');
+
+    var ec = lista.filter(function (x) { return x.clave === ecActual; })[0];
+    var c = P.conciliar(ec, estado.movimientos);
+    var tc = estado.ajustes.tipoCambio;
+    var aCRC = function (monto, moneda) { return moneda === 'USD' ? monto * tc : monto; };
+
+    // Gasto según el estado, por categoría (usa la categoría del movimiento si ya está en la app)
+    var porCat = {};
+    c.coinciden.forEach(function (x) {
+      var cat = x.movimiento.categoria || 'Otros';
+      porCat[cat] = (porCat[cat] || 0) + (x.cargo.esCredito ? -1 : 1) * aCRC(x.cargo.monto, x.cargo.moneda);
+    });
+    c.soloEstado.forEach(function (x) {
+      var cat = P.categorizar({ tipo: 'gasto', comercio: x.cargo.comercio, descripcion: x.cargo.descripcion }, estado.reglas);
+      x.categoria = cat;
+      porCat[cat] = (porCat[cat] || 0) + (x.cargo.esCredito ? -1 : 1) * aCRC(x.cargo.monto, x.cargo.moneda);
+    });
+    var totalEstado = Object.keys(porCat).reduce(function (s, k) { return s + porCat[k]; }, 0);
+    var rApp = P.resumenMes(estado.movimientos, ec.clave, opciones());
+
+    var html = '';
+
+    // Tarjetas
+    html += '<div class="tarjeta"><h2>' + esc(ec.mesEstado) + ' <small>periodo ' +
+      esc(P.etiquetaPeriodo(ec.clave, +ec.fechaCorte.slice(8, 10))) + '</small></h2>' +
+      '<div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Tarjeta</th><th class="num">Compras</th>' +
+      '<th class="num">Otros cargos</th><th class="num">Pago de contado</th><th>Fecha límite</th></tr></thead><tbody>' +
+      ec.tarjetas.map(function (t) {
+        return '<tr><td>' + esc(t.marca) + ' ' + esc(t.tarjeta) + '</td><td class="num">' + fmtDoble(t.totales.compras) +
+          '</td><td class="num">' + fmtDoble(t.totales.otrosCargos) + '</td><td class="num"><b>' + fmtDoble(t.pagoContado) +
+          '</b></td><td>' + (t.fechaLimitePago ? fechaCorta(t.fechaLimitePago) : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    var intereses = ec.tarjetas.filter(function (t) { return t.totales.interesesPeriodo.CRC || t.totales.interesesPeriodo.USD; });
+    if (intereses.length) {
+      html += '<p class="ayuda">💡 Intereses del periodo: ' + intereses.map(function (t) {
+        return t.tarjeta + ': ' + fmtDoble(t.totales.interesesPeriodo);
+      }).join(' · ') + '. BAC los reversa si paga el <b>pago de contado</b> completo antes de la fecha límite.</p>';
+    }
+    html += '</div>';
+
+    // KPIs de conciliación
+    html += '<div class="kpis">' +
+      kpi('Cargos en el estado', fmtDoble(c.resumen.cargosEstado), '', (c.coinciden.length + c.soloEstado.length) + ' cargos') +
+      kpi('Ya registrados en la app', fmtDoble(c.resumen.coinciden), 'pos', c.coinciden.length + ' coinciden') +
+      kpi('Faltan en su presupuesto', fmtDoble(c.resumen.soloEstado), c.soloEstado.length ? 'neg' : 'pos', c.soloEstado.length + ' cargos sin correo') +
+      kpi('En la app, no en el estado', fmtDoble(c.resumen.soloApp), '', c.soloApp.length + ' movimientos') +
+      '</div>';
+
+    // Comparación con el presupuesto
+    var filasCat = Object.keys(porCat).sort(function (a, b) { return porCat[b] - porCat[a]; });
+    html += '<div class="tarjeta"><h2>Estado de cuenta vs. presupuesto <small>por categoría, en colones</small></h2>' +
+      '<div class="tabla-envoltura"><table class="tabla"><thead><tr><th>Categoría</th><th class="num">Según estado</th>' +
+      '<th class="num">Presupuesto</th><th class="num">Diferencia</th></tr></thead><tbody>' +
+      filasCat.map(function (k) {
+        var pres = estado.presupuestos[k] || 0;
+        var dif = pres - porCat[k];
+        return '<tr><td>' + P.iconoDe(k) + ' ' + esc(k) + '</td><td class="num">' + crc(porCat[k]) + '</td><td class="num">' +
+          (pres ? crc(pres) : '—') + '</td><td class="num ' + (pres ? (dif >= 0 ? 'pos' : 'neg') : '') + '">' +
+          (pres ? (dif >= 0 ? '' : '−') + crc(Math.abs(dif)) : '') + '</td></tr>';
+      }).join('') +
+      '<tr><td><b>Total tarjetas</b></td><td class="num"><b>' + crc(totalEstado) + '</b></td><td class="num"><b>' +
+      crc(rApp.presupuestoTotal) + '</b></td><td></td></tr></tbody></table></div>' +
+      '<p class="ayuda">Gastos del periodo registrados en la app (todas las fuentes): <b>' + crc(rApp.gastos) +
+      '</b>. US$ a ₡' + tc + '.</p></div>';
+
+    // Faltan en la app
+    if (c.soloEstado.length) {
+      html += '<div class="tarjeta"><h2>Cargos del estado que no están en su presupuesto</h2>' +
+        '<p class="ayuda">Son cargos que no llegaron por correo (peajes, servicios domiciliados, IVA de servicios digitales…). ' +
+        'Marque los que quiere agregar.</p><div class="tabla-envoltura"><table class="tabla"><thead><tr>' +
+        '<th><input type="checkbox" id="ec-todos" checked aria-label="Seleccionar todos"></th><th>Fecha</th><th>Descripción</th>' +
+        '<th>Categoría</th><th class="num">Monto</th></tr></thead><tbody>' +
+        c.soloEstado.map(function (x) {
+          return '<tr><td><input type="checkbox" class="ec-sel" value="' + esc(x.cargo.id) + '" checked></td><td>' +
+            fechaCorta(x.cargo.fecha) + '</td><td class="desc">' + esc(x.cargo.comercio) + '<small>' + esc(x.cargo.tarjeta) +
+            ' · ' + esc(x.cargo.seccion) + '</small></td><td>' + P.iconoDe(x.categoria) + ' ' + esc(x.categoria) +
+            '</td><td class="num ' + (x.cargo.esCredito ? 'pos' : 'neg') + '">' + (x.cargo.esCredito ? '+ ' : '− ') +
+            fmtMoneda(x.cargo.monto, x.cargo.moneda) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+
+    // En la app pero no en el estado
+    if (c.soloApp.length) {
+      html += '<div class="tarjeta"><h2>En la app, pero no en este estado</h2><div class="tabla-envoltura"><table class="tabla">' +
+        '<thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th>Qué significa</th></tr></thead><tbody>' +
+        c.soloApp.map(function (x) {
+          var m = x.movimiento;
+          return '<tr><td>' + fechaCorta(m.fecha) + '</td><td class="desc">' + esc(m.comercio || m.descripcion) +
+            '<small>' + esc(m.tarjeta || '') + '</small></td><td class="num">' + montoOriginal(m) + '</td><td>' +
+            (x.proximoEstado ? '⏭️ Compra cerca del corte: saldrá en el próximo estado' :
+              '🔎 Revise: ¿se anuló, fue con otra tarjeta o es un cobro duplicado?') + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+
+    // Pagos
+    var pagos = c.pagos;
+    if (pagos.length) {
+      html += '<div class="tarjeta"><h2>Pagos a la tarjeta en el periodo</h2><div class="tabla-envoltura"><table class="tabla">' +
+        '<thead><tr><th>Fecha</th><th>Tarjeta</th><th class="num">Monto</th><th>Transferencia en la app</th></tr></thead><tbody>' +
+        pagos.map(function (x) {
+          return '<tr><td>' + fechaCorta(x.pago.fecha) + '</td><td>' + esc(x.tarjeta) + '</td><td class="num">' +
+            fmtMoneda(x.pago.monto, x.pago.moneda) + '</td><td>' +
+            (x.transferencia ? '✅ ' + esc(x.transferencia.descripcion) + ' del ' + fechaCorta(x.transferencia.fecha) : '—') +
+            '</td></tr>';
+        }).join('') + '</tbody></table></div><p class="ayuda">Los pagos a la tarjeta no son gasto: el gasto son las compras.</p></div>';
+    }
+
+    html += '<div class="tarjeta"><button id="ec-aplicar" class="primario">Aplicar conciliación</button>' +
+      '<p class="ayuda">Agrega los cargos marcados y asigna cada movimiento al periodo del estado de cuenta, ' +
+      'para que el resumen de ese periodo cuadre con el banco. Las compras cerca del corte pasan al periodo siguiente.</p>' +
+      '<button id="ec-borrar" class="peligro">Quitar este estado de cuenta</button></div>';
+
+    cont.innerHTML = html;
+    cont._conciliacion = { ec: ec, c: c };
+  }
+
+  function kpi(etiqueta, valor, clase, sub) {
+    return '<div class="kpi"><div class="etiqueta">' + etiqueta + '</div><div class="valor ' + clase + '">' + valor +
+      '</div><div class="sub">' + esc(sub) + '</div></div>';
+  }
+
+  $('#ec-archivo').addEventListener('change', function (e) {
+    var archivo = e.target.files[0];
+    if (archivo) procesarPdf(archivo, '');
+    e.target.value = '';
+  });
+  $('#ec-clave').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && pdfPendiente) { e.preventDefault(); procesarPdf(pdfPendiente, e.target.value); }
+  });
+  $('#ec-selector').addEventListener('change', function (e) { ecActual = e.target.value; renderEstadoCuenta(); });
+  $('#ec-resultado').addEventListener('change', function (e) {
+    if (e.target.id === 'ec-todos') {
+      document.querySelectorAll('.ec-sel').forEach(function (x) { x.checked = e.target.checked; });
+    }
+  });
+  $('#ec-resultado').addEventListener('click', function (e) {
+    var datos = $('#ec-resultado')._conciliacion;
+    if (!datos) return;
+    if (e.target.id === 'ec-aplicar') {
+      var ids = Array.prototype.map.call(document.querySelectorAll('.ec-sel:checked'), function (x) { return x.value; });
+      var r = P.aplicarConciliacion(datos.ec, datos.c, estado.movimientos, ids, estado.reglas);
+      estado.movimientos = r.movimientos.sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; });
+      estado.mes = datos.ec.clave;
+      guardar(); render();
+      aviso('Listo: ' + r.agregados + ' cargos agregados, ' + r.asignados + ' movimientos asignados al periodo' +
+        (r.movidos ? ', ' + r.movidos + ' pasan al siguiente' : '') + '.');
+    } else if (e.target.id === 'ec-borrar' && confirm('¿Quitar este estado de cuenta? Los movimientos ya agregados se mantienen.')) {
+      estado.estadosCuenta = estado.estadosCuenta.filter(function (x) { return x !== datos.ec; });
+      ecActual = '';
+      guardar(); render();
+    }
   });
 
   // ------------------------------------------------------------ Inicio

@@ -32,6 +32,20 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   (mismo comercio y monto en menos de 10 minutos).
 - **Dólares** convertidos a colones con el tipo de cambio configurable.
 - Movimientos manuales (efectivo, diezmos, alquiler…) y opción de **pegar el texto de un correo**.
+- **Periodos por fecha de corte**: con día de corte 6, cada periodo va del 7 de un mes al 6 del siguiente,
+  igual que el estado de cuenta de la tarjeta (0 = mes calendario).
+- **Estado de cuenta (PDF)**: al cierre de cada periodo cargue el PDF de BAC. Se lee en el navegador
+  (no se sube a ningún servidor) y se concilia cargo por cargo con sus movimientos:
+  - cargos que **no llegaron por correo** (peajes Compass, servicios domiciliados, IVA de servicios
+    digitales…) y se pueden agregar al presupuesto con un clic;
+  - movimientos de la app que **no aparecen** en el estado (compras cerca del corte que pasan al
+    siguiente periodo, anulaciones, posibles cobros duplicados);
+  - pagos a la tarjeta, intereses del periodo y **pago de contado**;
+  - gasto por categoría según el estado **vs. presupuesto**.
+
+  Al aplicar la conciliación, cada movimiento queda asignado al periodo del estado de cuenta. El banco
+  agrupa por fecha de registro, que puede ser uno o dos días después de la compra; así el resumen de
+  cada periodo cuadra con el banco.
 - Se ignoran las autorizaciones de verificación en ₡0,00 / US$0,00.
 
 ### Decisiones de diseño importantes
@@ -58,7 +72,9 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
 5. Guarde, vuelva a la hoja y recárguela. Aparece el menú **💰 Presupuesto**.
 6. **💰 Presupuesto → 1. Configurar**. Google pedirá permisos (lectura de Gmail y de esta hoja).
    Se importan los correos de los últimos 90 días y se programa una importación **cada hora**.
-7. Ajuste en la hoja **Presupuesto** los montos por categoría y el `_tipoCambioUSD`.
+7. Ajuste en la hoja **Presupuesto** los montos por categoría, el `_tipoCambioUSD` y el `_diaCorte`
+   (día de corte de la tarjeta; 0 = mes calendario). Si su hoja es anterior a esta versión, agregue la
+   fila `_diaCorte` a mano.
 8. Para fijar la categoría de un comercio, agréguelo a la hoja **Reglas** y use
    **💰 Presupuesto → Recategorizar con reglas**.
 
@@ -88,7 +104,9 @@ app/
   index.html, css/, js/app.js     interfaz web (sin dependencias)
   js/core/parser.js               lee correos del banco → movimiento
   js/core/categorias.js           categorías, reglas y categorizador
-  js/core/resumen.js              totales, presupuesto, alertas, tendencia
+  js/core/resumen.js              periodos de corte, totales, presupuesto, alertas, tendencia
+  js/core/estadoCuenta.js         lee el estado de cuenta (PDF) y lo concilia con los movimientos
+  vendor/pdfjs/                   pdf.js 4.10 (Apache-2.0) para leer el PDF en el navegador
 apps-script/
   Main.js                         Gmail → Hoja, disparador, API doGet
   appsscript.json                 manifiesto (zona horaria, permisos)
