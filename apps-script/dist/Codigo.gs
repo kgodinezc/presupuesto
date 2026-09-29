@@ -278,15 +278,15 @@
     ['EXN\\*|EXNESS|BINANCE|INVERSION|AHORRO|FONDO', 'Ahorro e inversión'],
     ['IGLESIA|MINISTERIO|OFRENDA|DIEZMO', 'Diezmos y ofrendas'],
     ['UBER ?EATS|DIDI ?FOOD|RAPPI|PEDIDOS ?YA', 'Restaurantes y comidas'],
-    ['AUTO ?MERCADO|\\bMXM\\b|MAS ?X ?MENOS|PRICE ?SMART|WALMART|\\bPALI\\b|MEGA ?SUPER|FRESH ?MARKET|\\bAM ?PM\\b|DELIMART|PERIMERCADO|\\bSUPER\\b|SUPERMERCADO|CARNICERIA|VERDULERIA|PANADERIA|QUESO|FERIA|MACROBIOTICA', 'Supermercado'],
-    ['RESTAURANTE|\\bSODA\\b|PIZZ|PAPA ?JOHN|MC ?DONALD|BURGER|\\bKFC\\b|TACO|STARBUCKS|\\bCAFE|COFFEE|SPOON|CASONA|SUBWAY|\\bPOPS\\b|HELAD|FRESI|CHURRER|MARISQ|SUSHI|POLLO|BAR ', 'Restaurantes y comidas'],
-    ['BOTICA|FARMACIA|CLINICA|HOSPITAL|LABORATORIO|SALUD|MEDIC|DENTAL|OPTICA|FISCHEL|SUCRE|\\bCCSS\\b', 'Salud'],
-    ['\\bUBER\\b|\\bDIDI\\b|GASOLINERA|SERVICENTRO|\\bDELTA\\b|\\bUNO\\b|LAVA ?CAR|PARQUEO|PARKING|RITEVE|DEKRA|PEAJE|QUICK ?PASS|REPUESTO|LLANTA|TALLER|\\bCOSEVI\\b|\\bINS\\b', 'Transporte y vehículo'],
-    ['\\bICE\\b|KOLBI|\\bCNFL\\b|\\bAYA\\b|\\bA Y A\\b|\\bTIGO\\b|\\bCLARO\\b|LIBERTY|TELECABLE|CABLETICA|\\bESPH\\b|JASEC|COOPELESCA|MUNICIPALIDAD|CONDOMINIO', 'Servicios del hogar'],
+    ['AUTO ?MERCADO|\\bMXM\\b|MAS ?X ?MENOS|PRICE ?SMART|WALMART|\\bPALI\\b|MEGA ?SUPER|FRESH ?MARKET|\\bAM ?PM\\b|DELIMART|PERIMERCADO|\\bSUPER\\b|SUPERMERCADO|CARNICERIA|VERDULERIA|PANADERIA|QUESO|FERIA|MACROBIOTICA|MAXI ?PALI|MAYCA|MEGASUPER', 'Supermercado'],
+    ['RESTAURANTE|\\bSODA\\b|PIZZ|PAPA ?JOHN|MC ?DONALD|BURGER|\\bKFC\\b|TACO|STARBUCKS|\\bCAFE|COFFEE|SPOON|CASONA|SUBWAY|\\bPOPS\\b|HELAD|FRESI|CHURRER|MARISQ|SUSHI|POLLO|BAR |CHILIS|ARCOS DORADOS', 'Restaurantes y comidas'],
+    ['BOTICA|FARMACIA|FARMA|MEDISMART|CLINICA|HOSPITAL|LABORATORIO|SALUD|MEDIC|DENTAL|OPTICA|FISCHEL|SUCRE|\\bCCSS\\b', 'Salud'],
+    ['\\bUBER\\b|\\bDIDI\\b|COMPASS|COMPAS\\b|GASOLINERA|SERVICENTRO|\\bDELTA\\b|\\bUNO\\b|LAVA ?CAR|PARQUEO|PARKING|RITEVE|DEKRA|PEAJE|QUICK ?PASS|REPUESTO|LLANTA|TALLER|\\bCOSEVI\\b|\\bINS\\b', 'Transporte y vehículo'],
+    ['\\bICE\\b|KOLBI|\\bCNFL\\b|C\\.N\\.F\\.L|\\bAYA\\b|\\bA Y A\\b|\\bTIGO\\b|\\bCLARO\\b|LIBERTY|TELECABLE|CABLETICA|\\bESPH\\b|JASEC|COOPELESCA|MUNICIPALIDAD|CONDOMINIO', 'Servicios del hogar'],
     ['SPOTIFY|NETFLIX|GOOGLE|YOUTUBE|CANVA|APPLE|ICLOUD|DISNEY|\\bHBO\\b|\\bMAX\\b|PARAMOUNT|PRIME ?VIDEO|CLAUDE|ANTHROPIC|OPENAI|MICROSOFT|ADOBE|DROPBOX', 'Suscripciones digitales'],
     ['AMAZON|EBAY|ALIEXPRESS|SHEIN|TEMU', 'Compras en línea'],
-    ['ZARA|H ?& ?M|SIMAN|BERSHKA|PULL ?AND ?BEAR|NIKE|ADIDAS|FOREVER|PAYLESS|STEVEN|\\bTOUS\\b|SALON|BARBER|LOLA|AMERICAN EAGLE', 'Ropa y cuidado personal'],
-    ['EL REY|PEQUENO MUNDO|\\bEPA\\b|CONSTRUPLAZA|FERRETERIA|\\bMONGE\\b|\\bGOLLO\\b|\\bEXTRA\\b|IKEA|CEMACO|WALMART HOGAR', 'Hogar'],
+    ['ZARA|H ?& ?M|SIMAN|BERSHKA|PULL ?AND ?BEAR|NIKE|ADIDAS|FOREVER|PAYLESS|STEVEN|\\bTOUS\\b|SALON|BARBER|LOLA|AMERICAN EAGLE|LILI PINK|\\bEPK\\b', 'Ropa y cuidado personal'],
+    ['EL REY|PEQUENO MUNDO|\\bEPA\\b|CONSTRUPLAZA|FERRETERIA|\\bMONGE\\b|\\bGOLLO\\b|\\bEXTRA\\b|IKEA|CEMACO|WALMART HOGAR|CHINA DEPOT', 'Hogar'],
     ['LIBRERIA|UNIVERSIDAD|COLEGIO|ESCUELA|UDEMY|COURSERA|UNIVERSAL|PLATZI', 'Educación y libros'],
     ['CROSSFIT|\\bGYM\\b|SMART ?FIT|DEPORT|DECATHLON|SPORT|FITNESS', 'Deporte'],
     ['HOTEL|KAYAK|EVENTOS|\\bCINE|\\bCCM\\b|\\bTOUR|PARQUE|MUSEO|AIRBNB|BOOKING|TICKET|TEATRO', 'Paseos y entretenimiento']
@@ -401,26 +401,84 @@
     return mov.monto;
   }
 
-  function mesDe(mov) { return String(mov.fecha || '').slice(0, 7); }
-
   function redondear(n) { return Math.round(n * 100) / 100; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function diasDelMes(anio, mes) { return new Date(anio, mes, 0).getDate(); } // mes 1-12
 
-  function mesesDisponibles(movs) {
+  // ------------------------------------------------------------ Periodos de corte
+  //
+  // Con diaCorte = 0 los periodos son meses calendario. Con diaCorte = 6 (como en
+  // BAC), el periodo "2026-09" va del 7 de agosto al 6 de setiembre: se nombra por
+  // el mes en que cierra, igual que el estado de cuenta ("SET-2026"). Si el día de
+  // corte no existe en un mes (p. ej. 31 en febrero), se usa el último día.
+
+  function corteDe(anio, mes, diaCorte) { return Math.min(diaCorte, diasDelMes(anio, mes)); }
+
+  /** 'YYYY-MM-DD…' -> clave del periodo 'YYYY-MM' */
+  function periodoDe(fecha, diaCorte) {
+    var f = String(fecha || '');
+    if (f.length < 10) return f.slice(0, 7);
+    var anio = +f.slice(0, 4), mes = +f.slice(5, 7), dia = +f.slice(8, 10);
+    if (!diaCorte) return f.slice(0, 7);
+    if (dia > corteDe(anio, mes, diaCorte)) {
+      mes += 1;
+      if (mes > 12) { mes = 1; anio += 1; }
+    }
+    return anio + '-' + pad(mes);
+  }
+
+  /** 'YYYY-MM' -> { inicio: 'YYYY-MM-DD', fin: 'YYYY-MM-DD' } (inclusive) */
+  function rangoPeriodo(clave, diaCorte) {
+    var anio = +clave.slice(0, 4), mes = +clave.slice(5, 7);
+    if (!diaCorte) {
+      return { inicio: clave + '-01', fin: clave + '-' + pad(diasDelMes(anio, mes)) };
+    }
+    var aAnt = mes === 1 ? anio - 1 : anio, mAnt = mes === 1 ? 12 : mes - 1;
+    var corteAnt = corteDe(aAnt, mAnt, diaCorte);
+    var inicio = corteAnt === diasDelMes(aAnt, mAnt)
+      ? anio + '-' + pad(mes) + '-01'
+      : aAnt + '-' + pad(mAnt) + '-' + pad(corteAnt + 1);
+    return { inicio: inicio, fin: clave + '-' + pad(corteDe(anio, mes, diaCorte)) };
+  }
+
+  var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
+  var MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
+    'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  /** Etiqueta legible: "7 ago – 6 set 2026" o "Setiembre 2026" */
+  function etiquetaPeriodo(clave, diaCorte) {
+    if (!diaCorte) return MESES_LARGOS[+clave.slice(5, 7) - 1] + ' ' + clave.slice(0, 4);
+    var r = rangoPeriodo(clave, diaCorte);
+    var f = function (d) { return (+d.slice(8, 10)) + ' ' + MESES_CORTOS[+d.slice(5, 7) - 1]; };
+    return f(r.inicio) + ' – ' + f(r.fin) + ' ' + r.fin.slice(0, 4);
+  }
+
+  /**
+   * Periodo de un movimiento. Si se concilió con un estado de cuenta, manda el
+   * periodo del estado (el banco agrupa por fecha de registro, que puede ser
+   * posterior a la compra); si no, se calcula por fecha y día de corte.
+   */
+  function periodoMovimiento(mov, diaCorte) {
+    return (diaCorte && mov.periodo) || periodoDe(mov.fecha, diaCorte);
+  }
+
+  function mesesDisponibles(movs, diaCorte) {
     var set = {};
-    movs.forEach(function (m) { var k = mesDe(m); if (k) set[k] = true; });
+    movs.forEach(function (m) { var k = periodoMovimiento(m, diaCorte); if (k) set[k] = true; });
     return Object.keys(set).sort().reverse();
   }
 
   /**
    * @param {Array} movs
-   * @param {string} mes 'YYYY-MM'
-   * @param {{tipoCambio:number, presupuestos:Object}} opciones
+   * @param {string} mes clave del periodo 'YYYY-MM'
+   * @param {{tipoCambio:number, presupuestos:Object, diaCorte:number}} opciones
    */
   function resumenMes(movs, mes, opciones) {
     opciones = opciones || {};
     var tc = opciones.tipoCambio || 1;
     var presupuestos = opciones.presupuestos || {};
-    var delMes = movs.filter(function (m) { return mesDe(m) === mes && !m.excluir; });
+    var diaCorte = opciones.diaCorte || 0;
+    var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
     var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
     var porCat = {}, porIngreso = {};
@@ -528,7 +586,7 @@
 
   /** Serie mensual para gráficos: [{mes, ingresos, gastos, balance}] (ascendente) */
   function serieMensual(movs, opciones) {
-    return mesesDisponibles(movs).reverse().map(function (mes) {
+    return mesesDisponibles(movs, (opciones || {}).diaCorte).reverse().map(function (mes) {
       var r = resumenMes(movs, mes, opciones);
       return { mes: mes, ingresos: r.ingresos, gastos: r.gastos, ahorro: r.ahorro, balance: r.balance };
     });
@@ -537,12 +595,420 @@
   var api = {
     aColones: aColones,
     mesesDisponibles: mesesDisponibles,
+    periodoDe: periodoDe,
+    periodoMovimiento: periodoMovimiento,
+    rangoPeriodo: rangoPeriodo,
+    etiquetaPeriodo: etiquetaPeriodo,
     resumenMes: resumenMes,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual
   };
 
   if (typeof module !== 'undefined' && module.exports) {
+    module.exports = api;
+  } else {
+    root.Presupuesto = root.Presupuesto || {};
+    for (var k in api) root.Presupuesto[k] = api[k];
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+// ===== app/js/core/estadoCuenta.js =====
+/**
+ * Estado de cuenta de tarjeta de crédito (PDF de BAC Credomatic) y conciliación.
+ *
+ * 1. agruparFilas(items): convierte los fragmentos de texto de pdf.js
+ *    ({str, x, y}) en filas "celda | celda | …", en orden de lectura.
+ * 2. parsearEstadoCuenta(filas): extrae por tarjeta el periodo, pagos, compras,
+ *    otros cargos (p. ej. IVA de servicios digitales), notas de crédito,
+ *    intereses y totales.
+ * 3. conciliar(estado, movimientos): compara cada cargo del estado con los
+ *    movimientos registrados (monto, moneda, fecha ±3 días y tarjeta).
+ */
+(function (root) {
+  'use strict';
+
+  var enNode = typeof module !== 'undefined' && module.exports;
+  var Parser = enNode ? require('./parser.js') : root.Presupuesto;
+  var Cat = enNode ? require('./categorias.js') : root.Presupuesto;
+
+  var MESES = { ENE: 1, FEB: 2, MAR: 3, ABR: 4, MAY: 5, JUN: 6, JUL: 7, AGO: 8,
+    SET: 9, SEP: 9, OCT: 10, NOV: 11, DIC: 12 };
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function redondear(n) { return Math.round(n * 100) / 100; }
+
+  /** "6-SET-26" -> "2026-09-06" */
+  function fechaEC(txt) {
+    var m = String(txt).match(/(\d{1,2})-([A-Z]{3})-(\d{2,4})/i);
+    if (!m || !MESES[m[2].toUpperCase()]) return '';
+    var anio = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    return anio + '-' + pad(MESES[m[2].toUpperCase()]) + '-' + pad(+m[1]);
+  }
+
+  /** "1,125,758.43-" -> -1125758.43 */
+  function montoEC(txt) {
+    var s = String(txt).trim();
+    var neg = /-$/.test(s) || /^\(.*\)$/.test(s);
+    var n = Parser.parsearMonto(s.replace(/[()-]/g, ''));
+    return neg ? -n : n;
+  }
+
+  /** Agrupa fragmentos de pdf.js en filas (misma línea si |Δy| ≤ 2). */
+  function agruparFilas(items) {
+    var filas = [];
+    items.forEach(function (it) {
+      if (!it.str || !it.str.trim()) return;
+      var fila = null;
+      for (var i = 0; i < filas.length; i++) {
+        if (filas[i].pagina === it.pagina && Math.abs(filas[i].y - it.y) <= 2) { fila = filas[i]; break; }
+      }
+      if (!fila) { fila = { pagina: it.pagina || 1, y: it.y, celdas: [] }; filas.push(fila); }
+      fila.celdas.push(it);
+    });
+    filas.sort(function (a, b) { return a.pagina - b.pagina || b.y - a.y; });
+    return filas.map(function (f) {
+      return f.celdas.sort(function (a, b) { return a.x - b.x; })
+        .map(function (c) { return c.str.trim(); }).join(' | ');
+    });
+  }
+
+  /**
+   * Nombre del comercio a partir de la descripción del estado:
+   * "AUTO MERCADO RIO ORO_ SAN | JOSE_ CRI" -> "AUTO MERCADO RIO ORO"
+   * "LA ARTESANIA DEL QUESOSAN | JOSE_ CRI" -> "LA ARTESANIA DEL QUESO" (campo de 22 caracteres)
+   */
+  function comercioEC(desc) {
+    var unido = desc.replace(/\s*\|\s*/g, '');
+    var guion = unido.indexOf('_');
+    var base = guion >= 0 ? unido.slice(0, guion) : unido;
+    if (guion >= 0 && base.length > 22) base = base.slice(0, 22);
+    return base.trim();
+  }
+
+  // ref | fecha | descripción… | CRC/USD | monto[-]
+  var RE_TX = /^(\d{8,})\s*\|\s*(\d{1,2}-[A-Z]{3}-\d{2})\s*\|\s*(.+?)\s*\|\s*(CRC|USD)\s*\|\s*([\d,]*\.\d{2})(-?)\s*$/i;
+  // ref | fecha | PAGO … | monto- [| interés-]
+  var RE_PAGO = /^(\d{8,})\s*\|\s*(\d{1,2}-[A-Z]{3}-\d{2})\s*\|\s*([^|]*PAGO[^|]*)\|\s*([\d,]*\.\d{2})-/i;
+  var RE_CUATRO = /\|\s*([\d,]*\.\d{2}-?)\s*\|\s*([\d,]*\.\d{2}-?)\s*\|\s*([\d,]*\.\d{2}-?)\s*\|\s*([\d,]*\.\d{2}-?)\s*$/;
+  var RE_DOS = /\|\s*([\d,]*\.\d{2}-?)\s*\|\s*([\d,]*\.\d{2}-?)\s*$/;
+
+  function nuevaTarjeta(ultimos4) {
+    return {
+      tarjeta: ultimos4, marca: '', fechaCorte: '', mesEstado: '', periodo: { inicio: '', fin: '' },
+      pagoContado: { CRC: 0, USD: 0 }, pagoMinimo: { CRC: 0, USD: 0 }, fechaLimitePago: '',
+      saldoAnterior: { CRC: 0, USD: 0 },
+      pagos: [], cargos: [],
+      totales: { compras: { CRC: 0, USD: 0 }, otrosCargos: { CRC: 0, USD: 0 },
+        pagos: { CRC: 0, USD: 0 }, intereses: { CRC: 0, USD: 0 }, interesesPeriodo: { CRC: 0, USD: 0 } }
+    };
+  }
+
+  /** Asigna moneda a los pagos: el subconjunto que suma el total en USD son dólares. */
+  function asignarMonedaPagos(t, montosPagos) {
+    var objetivo = t.totales.pagos.USD;
+    var n = montosPagos.length;
+    var usd = {};
+    if (objetivo > 0 && n <= 16) {
+      for (var mask = 1; mask < (1 << n); mask++) {
+        var suma = 0;
+        for (var i = 0; i < n; i++) if (mask & (1 << i)) suma += montosPagos[i].monto;
+        if (Math.abs(suma - objetivo) < 0.01) {
+          for (var j = 0; j < n; j++) if (mask & (1 << j)) usd[j] = true;
+          break;
+        }
+      }
+    }
+    t.pagos = montosPagos.map(function (p, i) {
+      return { referencia: p.referencia, fecha: p.fecha, descripcion: p.descripcion,
+        monto: p.monto, moneda: usd[i] ? 'USD' : 'CRC' };
+    });
+  }
+
+  /**
+   * @param {string[]} filas filas de texto ("celda | celda")
+   * @return {{tarjetas: Array, fechaCorte: string, mesEstado: string}}
+   */
+  function parsearEstadoCuenta(filas) {
+    var tarjetas = [];
+    var t = null, seccion = null, pagosTmp = [], ocurrencias = {};
+
+    function cerrar() { if (t) { asignarMonedaPagos(t, pagosTmp); tarjetas.push(t); } pagosTmp = []; }
+
+    filas.forEach(function (fila) {
+      var l = String(fila).trim();
+      var m;
+
+      if ((m = l.match(/^Marca de tarjeta:\s*\|\s*([^|]+)/i))) {
+        cerrar();
+        t = nuevaTarjeta('');
+        t.marca = m[1].trim();
+        seccion = null;
+        return;
+      }
+      if (!t) return;
+
+      if ((m = l.match(/^N[uú]mero de cuenta:\s*\|\s*\**(\d{4})/i))) { t.tarjeta = m[1]; return; }
+      if ((m = l.match(/^Fecha de corte:\s*\|\s*(\d{1,2}-[A-Z]{3}-\d{2})/i))) { t.fechaCorte = fechaEC(m[1]); return; }
+      if ((m = l.match(/^Fecha l[ií]mite pago de contado:\s*\|\s*(\d{1,2}-[A-Z]{3}-\d{2})/i))) { t.fechaLimitePago = fechaEC(m[1]); return; }
+      if ((m = l.match(/^Mes y a[nñ]o del estado de cuenta:\s*\|\s*([A-Z]{3}-\d{4})/i))) { t.mesEstado = m[1].toUpperCase(); return; }
+      if ((m = l.match(/PAGO DE CONTADO\s*\|\s*En Colones\s*\|\s*([\d,.]+)\s*\|\s*En D[oó]lares\s*\|\s*([\d,.]+)/i))) {
+        t.pagoContado = { CRC: montoEC(m[1]), USD: montoEC(m[2]) }; return;
+      }
+      if ((m = l.match(/^Total pago m[ií]nimo\s*\|\s*([\d,.]+)\s*\|\s*([\d,.]+)/i))) {
+        t.pagoMinimo = { CRC: montoEC(m[1]), USD: montoEC(m[2]) }; return;
+      }
+      if (/^Saldo Anterior \d/i.test(l) && (m = l.match(RE_CUATRO))) {
+        t.saldoAnterior = { CRC: montoEC(m[1]), USD: montoEC(m[3]) }; return;
+      }
+
+      if (/^A\) Detalle de pago/i.test(l)) { seccion = 'pagos'; return; }
+      if (/^B\) Detalle de compras/i.test(l)) { seccion = 'compras'; return; }
+      if (/^C\) Detalle de intereses/i.test(l)) { seccion = 'intereses'; return; }
+      if (/^D\) Detalle de otros cargos/i.test(l)) { seccion = 'otros'; return; }
+      if (/^E\) Detalle de productos/i.test(l)) { seccion = 'otros'; return; }
+      if (/^F\) Cargos por gesti/i.test(l)) { seccion = 'otros'; return; }
+      if (/^G\) Otras notas de cr/i.test(l)) { seccion = 'creditos'; return; }
+      if (/^Saldos al corte/i.test(l)) { seccion = null; return; }
+
+      if (seccion === 'pagos') {
+        if ((m = l.match(RE_PAGO))) {
+          pagosTmp.push({ referencia: m[1], fecha: fechaEC(m[2]), descripcion: m[3].trim(), monto: montoEC(m[4] + '-') * -1 });
+        } else if (/^Total de pagos recibidos/i.test(l) && (m = l.match(RE_CUATRO))) {
+          t.totales.pagos = { CRC: -montoEC(m[1]) || 0, USD: -montoEC(m[3]) || 0 };
+        }
+        return;
+      }
+
+      if (seccion === 'compras' || seccion === 'otros' || seccion === 'creditos') {
+        if ((m = l.match(RE_TX))) {
+          var monto = montoEC(m[5] + m[6]);
+          var clave = [t.tarjeta, m[1], m[2], m[5], m[6]].join('|');
+          ocurrencias[clave] = (ocurrencias[clave] || 0) + 1;
+          t.cargos.push({
+            id: 'ec-' + t.tarjeta + '-' + m[1] + '-' + fechaEC(m[2]) + '-' + m[5].replace(/,/g, '') + (m[6] ? 'n' : '') +
+              (ocurrencias[clave] > 1 ? '-' + ocurrencias[clave] : ''),
+            referencia: m[1],
+            fecha: fechaEC(m[2]),
+            descripcion: m[3].replace(/\s*\|\s*/g, ' ').replace(/_/g, ' ').replace(/\s+/g, ' ').trim(),
+            comercio: comercioEC(m[3]),
+            moneda: m[4].toUpperCase(),
+            monto: Math.abs(monto),
+            esCredito: monto < 0 || seccion === 'creditos',
+            seccion: seccion === 'otros' ? 'otros cargos' : (seccion === 'creditos' ? 'notas de crédito' : 'compras'),
+            tarjeta: t.tarjeta
+          });
+        } else if ((m = l.match(/^Total de compras del periodo \(del (\S+) al (\S+)\)/i))) {
+          t.periodo = { inicio: fechaEC(m[1]), fin: fechaEC(m[2]) };
+          var d = l.match(RE_DOS);
+          if (d) t.totales.compras = { CRC: montoEC(d[1]), USD: montoEC(d[2]) };
+        } else if (/^Total por concepto otros cargos/i.test(l) && (m = l.match(RE_DOS))) {
+          t.totales.otrosCargos = { CRC: montoEC(m[1]), USD: montoEC(m[2]) };
+        }
+        return;
+      }
+
+      if (seccion === 'intereses') {
+        if (/^Monto por intereses corrientes del periodo actual/i.test(l) && (m = l.match(RE_DOS))) {
+          t.totales.interesesPeriodo = { CRC: montoEC(m[1]), USD: montoEC(m[2]) };
+        } else if (/^Total por concepto de intereses/i.test(l) && (m = l.match(RE_DOS))) {
+          t.totales.intereses = { CRC: montoEC(m[1]), USD: montoEC(m[2]) };
+        }
+      }
+    });
+    cerrar();
+
+    tarjetas = tarjetas.filter(function (x) { return x.tarjeta; });
+    var principal = tarjetas[0] || {};
+    return {
+      clave: String(principal.fechaCorte || '').slice(0, 7),
+      fechaCorte: principal.fechaCorte || '',
+      mesEstado: principal.mesEstado || '',
+      periodo: principal.periodo || { inicio: '', fin: '' },
+      tarjetas: tarjetas
+    };
+  }
+
+  // ------------------------------------------------------------ Conciliación
+
+  function diasEntre(a, b) {
+    return Math.abs(Date.parse(String(a).slice(0, 10)) - Date.parse(String(b).slice(0, 10))) / 86400000;
+  }
+
+  function ultimos4(tarjeta) {
+    var m = String(tarjeta || '').match(/(\d{4})\s*$/);
+    return m ? m[1] : '';
+  }
+
+  function parecido(a, b) {
+    var x = Cat.claveComercio(a), y = Cat.claveComercio(b);
+    if (!x || !y) return 0;
+    if (x.indexOf(y) === 0 || y.indexOf(x) === 0) return 1;
+    var px = x.split(' '), py = y.split(' ');
+    var comunes = px.filter(function (p) { return p.length > 2 && py.indexOf(p) >= 0; }).length;
+    return comunes / Math.max(px.length, py.length);
+  }
+
+  /**
+   * @param {Object} estado resultado de parsearEstadoCuenta
+   * @param {Array} movimientos movimientos de la app
+   * @param {{toleranciaDias?:number}} opciones
+   * @return {{coinciden:Array, soloEstado:Array, soloApp:Array, pagos:Array, resumen:Object}}
+   */
+  function conciliar(estado, movimientos, opciones) {
+    var tol = (opciones && opciones.toleranciaDias) || 3;
+    var tarjetas = estado.tarjetas.map(function (t) { return t.tarjeta; });
+    var periodo = estado.periodo;
+    var usados = {};
+
+    // Movimientos de tarjeta en el periodo (con holgura para la fecha de registro)
+    var candidatos = movimientos.filter(function (m) {
+      if (m.tipo !== 'gasto' && m.tipo !== 'reembolso') return false;
+      if (m.fuente === 'Estado de cuenta') return false;
+      // Ya asignado a otro estado de cuenta (p. ej. pasó al periodo siguiente)
+      if (m.periodo && m.periodo !== estado.clave) return false;
+      var f = String(m.fecha).slice(0, 10);
+      return f >= periodo.inicio && f <= periodo.fin || (diasEntre(f, periodo.inicio) <= tol && f < periodo.inicio);
+    });
+
+    var coinciden = [], soloEstado = [];
+    estado.tarjetas.forEach(function (t) {
+      t.cargos.forEach(function (c) {
+        // Ya se agregó desde este estado de cuenta en una conciliación anterior
+        var previo = movimientos.filter(function (m) { return m.id === c.id; })[0];
+        if (previo) { coinciden.push({ cargo: c, movimiento: previo, agregadoDelEstado: true }); return; }
+        var mejor = null, mejorPuntaje = -1;
+        candidatos.forEach(function (m) {
+          if (usados[m.id]) return;
+          if (m.moneda !== c.moneda || Math.abs(m.monto - c.monto) > 0.01) return;
+          if ((m.tipo === 'reembolso') !== c.esCredito) return;
+          var t4 = ultimos4(m.tarjeta);
+          if (t4 && t4 !== c.tarjeta) return;
+          var dd = diasEntre(m.fecha, c.fecha);
+          if (dd > tol) return;
+          var puntaje = (3 - dd) + parecido(m.comercio || m.descripcion, c.comercio) * 2;
+          if (puntaje > mejorPuntaje) { mejor = m; mejorPuntaje = puntaje; }
+        });
+        if (mejor) {
+          usados[mejor.id] = true;
+          coinciden.push({ cargo: c, movimiento: mejor });
+        } else {
+          soloEstado.push({ cargo: c });
+        }
+      });
+    });
+
+    // En la app pero no en el estado. Si la compra fue en los últimos días antes
+    // del corte, lo normal es que el banco la registre en el próximo estado.
+    var soloApp = candidatos.filter(function (m) {
+      if (usados[m.id]) return false;
+      var f = String(m.fecha).slice(0, 10);
+      if (f < periodo.inicio || f > periodo.fin) return false;
+      var t4 = ultimos4(m.tarjeta);
+      return !t4 || tarjetas.indexOf(t4) >= 0;
+    }).map(function (m) {
+      return { movimiento: m, proximoEstado: diasEntre(m.fecha, periodo.fin) < tol };
+    });
+
+    // Pagos a la tarjeta vs. transferencias registradas (p. ej. SINPE enviado)
+    var pagos = [];
+    estado.tarjetas.forEach(function (t) {
+      t.pagos.forEach(function (p) {
+        var tr = movimientos.filter(function (m) {
+          return m.tipo === 'transferencia' && m.moneda === p.moneda &&
+            Math.abs(m.monto - p.monto) < 0.01 && diasEntre(m.fecha, p.fecha) <= tol;
+        })[0];
+        pagos.push({ pago: p, tarjeta: t.tarjeta, transferencia: tr || null });
+      });
+    });
+
+    function sumar(lista, fn) {
+      var s = { CRC: 0, USD: 0 };
+      lista.forEach(function (x) { var c = fn(x); s[c.moneda] += (c.esCredito || c.tipo === 'reembolso' ? -1 : 1) * c.monto; });
+      s.CRC = redondear(s.CRC); s.USD = redondear(s.USD);
+      return s;
+    }
+
+    return {
+      coinciden: coinciden,
+      soloEstado: soloEstado,
+      soloApp: soloApp,
+      pagos: pagos,
+      resumen: {
+        cargosEstado: sumar([].concat.apply([], estado.tarjetas.map(function (t) { return t.cargos; })), function (c) { return c; }),
+        coinciden: sumar(coinciden, function (x) { return x.cargo; }),
+        soloEstado: sumar(soloEstado, function (x) { return x.cargo; }),
+        soloApp: sumar(soloApp, function (x) { return x.movimiento; })
+      }
+    };
+  }
+
+  /** Convierte cargos del estado en movimientos para el presupuesto. */
+  function movimientosDesdeCargos(cargos, reglasUsuario) {
+    return cargos.map(function (c) {
+      var mov = {
+        id: c.id,
+        fecha: c.fecha + 'T12:00',
+        tipo: c.esCredito ? 'reembolso' : 'gasto',
+        descripcion: c.descripcion,
+        comercio: c.comercio,
+        monto: c.monto,
+        moneda: c.moneda,
+        tarjeta: 'Tarjeta ' + c.tarjeta,
+        referencia: c.referencia,
+        fuente: 'Estado de cuenta',
+        nota: 'Agregado desde el estado de cuenta (' + c.seccion + ')'
+      };
+      mov.categoria = Cat.categorizar(mov, reglasUsuario);
+      return mov;
+    });
+  }
+
+  function siguientePeriodo(clave) {
+    var anio = +clave.slice(0, 4), mes = +clave.slice(5, 7) + 1;
+    if (mes > 12) { mes = 1; anio += 1; }
+    return anio + '-' + pad(mes);
+  }
+
+  /**
+   * Aplica la conciliación sobre una copia de los movimientos:
+   *  - los que coinciden quedan asignados al periodo del estado;
+   *  - los que el banco registrará en el próximo estado pasan al periodo siguiente;
+   *  - se agregan los cargos del estado elegidos (idsAgregar) que faltaban.
+   * @return {{movimientos:Array, agregados:number, asignados:number, movidos:number}}
+   */
+  function aplicarConciliacion(estado, conciliacion, movimientos, idsAgregar, reglasUsuario) {
+    var clave = estado.clave;
+    var porId = {};
+    var copia = movimientos.map(function (m) { var c = {}; for (var k in m) c[k] = m[k]; porId[c.id] = c; return c; });
+    var asignados = 0, movidos = 0;
+    conciliacion.coinciden.forEach(function (x) {
+      var m = porId[x.movimiento.id];
+      if (m && m.periodo !== clave) { m.periodo = clave; asignados++; }
+    });
+    conciliacion.soloApp.forEach(function (x) {
+      var m = porId[x.movimiento.id];
+      if (m && x.proximoEstado && m.periodo !== siguientePeriodo(clave)) { m.periodo = siguientePeriodo(clave); movidos++; }
+    });
+    var elegir = {};
+    (idsAgregar || []).forEach(function (id) { elegir[id] = true; });
+    var nuevos = movimientosDesdeCargos(conciliacion.soloEstado
+      .filter(function (x) { return elegir[x.cargo.id] && !porId[x.cargo.id]; })
+      .map(function (x) { return x.cargo; }), reglasUsuario);
+    nuevos.forEach(function (m) { m.periodo = clave; copia.push(m); });
+    return { movimientos: copia, agregados: nuevos.length, asignados: asignados, movidos: movidos };
+  }
+
+  var api = {
+    aplicarConciliacion: aplicarConciliacion,
+    agruparFilas: agruparFilas,
+    parsearEstadoCuenta: parsearEstadoCuenta,
+    conciliar: conciliar,
+    movimientosDesdeCargos: movimientosDesdeCargos,
+    fechaEC: fechaEC,
+    comercioEC: comercioEC
+  };
+
+  if (enNode) {
     module.exports = api;
   } else {
     root.Presupuesto = root.Presupuesto || {};
@@ -574,7 +1040,9 @@ var CONFIG = {
     '(subject:"Notificación de transacción" OR subject:"Transferencia" OR "transferencia SINPE")',
   DIAS_PRIMERA_CARGA: 90,
   DIAS_CARGA_NORMAL: 10,
-  TIPO_CAMBIO_PREDETERMINADO: 505
+  TIPO_CAMBIO_PREDETERMINADO: 505,
+  // Día de corte de la tarjeta (0 = mes calendario). Se cambia en la hoja Presupuesto, fila _diaCorte.
+  DIA_CORTE_PREDETERMINADO: 0
 };
 
 var COLUMNAS = ['id', 'fecha', 'tipo', 'categoria', 'descripcion', 'comercio', 'monto', 'moneda',
@@ -613,6 +1081,9 @@ function configurar() {
     Presupuesto.CATEGORIAS_GASTO.forEach(function (c) { hojaPres.appendRow([c.nombre, c.presupuesto]); });
     hojaPres.appendRow(['_tipoCambioUSD', CONFIG.TIPO_CAMBIO_PREDETERMINADO]);
     hojaPres.setFrozenRows(1);
+  }
+  if (leerAjuste_(ss, '_diaCorte') === null) {
+    hojaPres.appendRow(['_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO]);
   }
 
   var hojaReglas = obtenerHoja_(ss, CONFIG.HOJA_REGLAS);
@@ -714,14 +1185,15 @@ function recategorizarTodo() {
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
-  var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss) };
+  var diaCorte = leerDiaCorte_(ss);
+  var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss), diaCorte: diaCorte };
   var hoja = obtenerHoja_(ss, CONFIG.HOJA_RESUMEN);
   hoja.clear();
 
-  var filas = [['Mes', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
-  Presupuesto.mesesDisponibles(movs).forEach(function (mes) {
+  var filas = [[diaCorte ? 'Periodo (corte día ' + diaCorte + ')' : 'Mes', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
+  Presupuesto.mesesDisponibles(movs, diaCorte).forEach(function (mes) {
     var r = Presupuesto.resumenMes(movs, mes, opciones);
-    filas.push([mes, r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
+    filas.push([Presupuesto.etiquetaPeriodo(mes, diaCorte), r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
       r.tasaAhorro == null ? '' : r.tasaAhorro]);
   });
   hoja.getRange(1, 1, filas.length, filas[0].length).setValues(filas);
@@ -732,11 +1204,11 @@ function actualizarResumen() {
   }
 
   // Detalle por categoría del mes más reciente
-  var meses = Presupuesto.mesesDisponibles(movs);
+  var meses = Presupuesto.mesesDisponibles(movs, diaCorte);
   if (!meses.length) return;
   var r = Presupuesto.resumenMes(movs, meses[0], opciones);
   var inicio = filas.length + 3;
-  var det = [['Categoría (' + meses[0] + ')', 'Gastado', 'Presupuesto', '% usado']];
+  var det = [['Categoría (' + Presupuesto.etiquetaPeriodo(meses[0], diaCorte) + ')', 'Gastado', 'Presupuesto', '% usado']];
   r.porCategoria.forEach(function (c) {
     det.push([c.icono + ' ' + c.categoria, c.total, c.presupuesto, c.usoPresupuesto == null ? '' : c.usoPresupuesto]);
   });
@@ -771,7 +1243,8 @@ function doGet(e) {
       generado: new Date().toISOString(),
       movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)),
       presupuestos: leerPresupuestos_(ss),
-      tipoCambio: leerTipoCambio_(ss)
+      tipoCambio: leerTipoCambio_(ss),
+      diaCorte: leerDiaCorte_(ss)
     };
   }
   // JSONP (?callback=fn): permite leer los datos desde otro dominio sin depender de CORS.
@@ -836,13 +1309,24 @@ function leerPresupuestos_(ss) {
   return p;
 }
 
-function leerTipoCambio_(ss) {
+/** Valor de una fila de ajuste (_tipoCambioUSD, _diaCorte) en la hoja Presupuesto, o null. */
+function leerAjuste_(ss, nombre) {
   var hoja = ss.getSheetByName(CONFIG.HOJA_PRESUPUESTO);
   if (hoja && hoja.getLastRow() >= 2) {
     var filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, 2).getValues();
     for (var i = 0; i < filas.length; i++) {
-      if (filas[i][0] === '_tipoCambioUSD' && Number(filas[i][1]) > 0) return Number(filas[i][1]);
+      if (filas[i][0] === nombre && filas[i][1] !== '') return Number(filas[i][1]);
     }
   }
-  return CONFIG.TIPO_CAMBIO_PREDETERMINADO;
+  return null;
+}
+
+function leerTipoCambio_(ss) {
+  var v = leerAjuste_(ss, '_tipoCambioUSD');
+  return v > 0 ? v : CONFIG.TIPO_CAMBIO_PREDETERMINADO;
+}
+
+function leerDiaCorte_(ss) {
+  var v = leerAjuste_(ss, '_diaCorte');
+  return v >= 1 && v <= 31 ? Math.floor(v) : CONFIG.DIA_CORTE_PREDETERMINADO;
 }

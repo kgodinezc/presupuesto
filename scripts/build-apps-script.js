@@ -12,6 +12,7 @@ const partes = [
   'app/js/core/parser.js',
   'app/js/core/categorias.js',
   'app/js/core/resumen.js',
+  'app/js/core/estadoCuenta.js',
   'apps-script/Main.js'
 ];
 

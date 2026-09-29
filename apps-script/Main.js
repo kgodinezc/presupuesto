@@ -21,7 +21,9 @@ var CONFIG = {
     '(subject:"Notificación de transacción" OR subject:"Transferencia" OR "transferencia SINPE")',
   DIAS_PRIMERA_CARGA: 90,
   DIAS_CARGA_NORMAL: 10,
-  TIPO_CAMBIO_PREDETERMINADO: 505
+  TIPO_CAMBIO_PREDETERMINADO: 505,
+  // Día de corte de la tarjeta (0 = mes calendario). Se cambia en la hoja Presupuesto, fila _diaCorte.
+  DIA_CORTE_PREDETERMINADO: 0
 };
 
 var COLUMNAS = ['id', 'fecha', 'tipo', 'categoria', 'descripcion', 'comercio', 'monto', 'moneda',
@@ -60,6 +62,9 @@ function configurar() {
     Presupuesto.CATEGORIAS_GASTO.forEach(function (c) { hojaPres.appendRow([c.nombre, c.presupuesto]); });
     hojaPres.appendRow(['_tipoCambioUSD', CONFIG.TIPO_CAMBIO_PREDETERMINADO]);
     hojaPres.setFrozenRows(1);
+  }
+  if (leerAjuste_(ss, '_diaCorte') === null) {
+    hojaPres.appendRow(['_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO]);
   }
 
   var hojaReglas = obtenerHoja_(ss, CONFIG.HOJA_REGLAS);
@@ -161,14 +166,15 @@ function recategorizarTodo() {
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
-  var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss) };
+  var diaCorte = leerDiaCorte_(ss);
+  var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss), diaCorte: diaCorte };
   var hoja = obtenerHoja_(ss, CONFIG.HOJA_RESUMEN);
   hoja.clear();
 
-  var filas = [['Mes', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
-  Presupuesto.mesesDisponibles(movs).forEach(function (mes) {
+  var filas = [[diaCorte ? 'Periodo (corte día ' + diaCorte + ')' : 'Mes', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
+  Presupuesto.mesesDisponibles(movs, diaCorte).forEach(function (mes) {
     var r = Presupuesto.resumenMes(movs, mes, opciones);
-    filas.push([mes, r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
+    filas.push([Presupuesto.etiquetaPeriodo(mes, diaCorte), r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
       r.tasaAhorro == null ? '' : r.tasaAhorro]);
   });
   hoja.getRange(1, 1, filas.length, filas[0].length).setValues(filas);
@@ -179,11 +185,11 @@ function actualizarResumen() {
   }
 
   // Detalle por categoría del mes más reciente
-  var meses = Presupuesto.mesesDisponibles(movs);
+  var meses = Presupuesto.mesesDisponibles(movs, diaCorte);
   if (!meses.length) return;
   var r = Presupuesto.resumenMes(movs, meses[0], opciones);
   var inicio = filas.length + 3;
-  var det = [['Categoría (' + meses[0] + ')', 'Gastado', 'Presupuesto', '% usado']];
+  var det = [['Categoría (' + Presupuesto.etiquetaPeriodo(meses[0], diaCorte) + ')', 'Gastado', 'Presupuesto', '% usado']];
   r.porCategoria.forEach(function (c) {
     det.push([c.icono + ' ' + c.categoria, c.total, c.presupuesto, c.usoPresupuesto == null ? '' : c.usoPresupuesto]);
   });
@@ -218,7 +224,8 @@ function doGet(e) {
       generado: new Date().toISOString(),
       movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)),
       presupuestos: leerPresupuestos_(ss),
-      tipoCambio: leerTipoCambio_(ss)
+      tipoCambio: leerTipoCambio_(ss),
+      diaCorte: leerDiaCorte_(ss)
     };
   }
   // JSONP (?callback=fn): permite leer los datos desde otro dominio sin depender de CORS.
@@ -283,13 +290,24 @@ function leerPresupuestos_(ss) {
   return p;
 }
 
-function leerTipoCambio_(ss) {
+/** Valor de una fila de ajuste (_tipoCambioUSD, _diaCorte) en la hoja Presupuesto, o null. */
+function leerAjuste_(ss, nombre) {
   var hoja = ss.getSheetByName(CONFIG.HOJA_PRESUPUESTO);
   if (hoja && hoja.getLastRow() >= 2) {
     var filas = hoja.getRange(2, 1, hoja.getLastRow() - 1, 2).getValues();
     for (var i = 0; i < filas.length; i++) {
-      if (filas[i][0] === '_tipoCambioUSD' && Number(filas[i][1]) > 0) return Number(filas[i][1]);
+      if (filas[i][0] === nombre && filas[i][1] !== '') return Number(filas[i][1]);
     }
   }
-  return CONFIG.TIPO_CAMBIO_PREDETERMINADO;
+  return null;
+}
+
+function leerTipoCambio_(ss) {
+  var v = leerAjuste_(ss, '_tipoCambioUSD');
+  return v > 0 ? v : CONFIG.TIPO_CAMBIO_PREDETERMINADO;
+}
+
+function leerDiaCorte_(ss) {
+  var v = leerAjuste_(ss, '_diaCorte');
+  return v >= 1 && v <= 31 ? Math.floor(v) : CONFIG.DIA_CORTE_PREDETERMINADO;
 }

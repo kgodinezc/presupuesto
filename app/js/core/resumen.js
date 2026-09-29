@@ -23,26 +23,84 @@
     return mov.monto;
   }
 
-  function mesDe(mov) { return String(mov.fecha || '').slice(0, 7); }
-
   function redondear(n) { return Math.round(n * 100) / 100; }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function diasDelMes(anio, mes) { return new Date(anio, mes, 0).getDate(); } // mes 1-12
 
-  function mesesDisponibles(movs) {
+  // ------------------------------------------------------------ Periodos de corte
+  //
+  // Con diaCorte = 0 los periodos son meses calendario. Con diaCorte = 6 (como en
+  // BAC), el periodo "2026-09" va del 7 de agosto al 6 de setiembre: se nombra por
+  // el mes en que cierra, igual que el estado de cuenta ("SET-2026"). Si el día de
+  // corte no existe en un mes (p. ej. 31 en febrero), se usa el último día.
+
+  function corteDe(anio, mes, diaCorte) { return Math.min(diaCorte, diasDelMes(anio, mes)); }
+
+  /** 'YYYY-MM-DD…' -> clave del periodo 'YYYY-MM' */
+  function periodoDe(fecha, diaCorte) {
+    var f = String(fecha || '');
+    if (f.length < 10) return f.slice(0, 7);
+    var anio = +f.slice(0, 4), mes = +f.slice(5, 7), dia = +f.slice(8, 10);
+    if (!diaCorte) return f.slice(0, 7);
+    if (dia > corteDe(anio, mes, diaCorte)) {
+      mes += 1;
+      if (mes > 12) { mes = 1; anio += 1; }
+    }
+    return anio + '-' + pad(mes);
+  }
+
+  /** 'YYYY-MM' -> { inicio: 'YYYY-MM-DD', fin: 'YYYY-MM-DD' } (inclusive) */
+  function rangoPeriodo(clave, diaCorte) {
+    var anio = +clave.slice(0, 4), mes = +clave.slice(5, 7);
+    if (!diaCorte) {
+      return { inicio: clave + '-01', fin: clave + '-' + pad(diasDelMes(anio, mes)) };
+    }
+    var aAnt = mes === 1 ? anio - 1 : anio, mAnt = mes === 1 ? 12 : mes - 1;
+    var corteAnt = corteDe(aAnt, mAnt, diaCorte);
+    var inicio = corteAnt === diasDelMes(aAnt, mAnt)
+      ? anio + '-' + pad(mes) + '-01'
+      : aAnt + '-' + pad(mAnt) + '-' + pad(corteAnt + 1);
+    return { inicio: inicio, fin: clave + '-' + pad(corteDe(anio, mes, diaCorte)) };
+  }
+
+  var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic'];
+  var MESES_LARGOS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto',
+    'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+  /** Etiqueta legible: "7 ago – 6 set 2026" o "Setiembre 2026" */
+  function etiquetaPeriodo(clave, diaCorte) {
+    if (!diaCorte) return MESES_LARGOS[+clave.slice(5, 7) - 1] + ' ' + clave.slice(0, 4);
+    var r = rangoPeriodo(clave, diaCorte);
+    var f = function (d) { return (+d.slice(8, 10)) + ' ' + MESES_CORTOS[+d.slice(5, 7) - 1]; };
+    return f(r.inicio) + ' – ' + f(r.fin) + ' ' + r.fin.slice(0, 4);
+  }
+
+  /**
+   * Periodo de un movimiento. Si se concilió con un estado de cuenta, manda el
+   * periodo del estado (el banco agrupa por fecha de registro, que puede ser
+   * posterior a la compra); si no, se calcula por fecha y día de corte.
+   */
+  function periodoMovimiento(mov, diaCorte) {
+    return (diaCorte && mov.periodo) || periodoDe(mov.fecha, diaCorte);
+  }
+
+  function mesesDisponibles(movs, diaCorte) {
     var set = {};
-    movs.forEach(function (m) { var k = mesDe(m); if (k) set[k] = true; });
+    movs.forEach(function (m) { var k = periodoMovimiento(m, diaCorte); if (k) set[k] = true; });
     return Object.keys(set).sort().reverse();
   }
 
   /**
    * @param {Array} movs
-   * @param {string} mes 'YYYY-MM'
-   * @param {{tipoCambio:number, presupuestos:Object}} opciones
+   * @param {string} mes clave del periodo 'YYYY-MM'
+   * @param {{tipoCambio:number, presupuestos:Object, diaCorte:number}} opciones
    */
   function resumenMes(movs, mes, opciones) {
     opciones = opciones || {};
     var tc = opciones.tipoCambio || 1;
     var presupuestos = opciones.presupuestos || {};
-    var delMes = movs.filter(function (m) { return mesDe(m) === mes && !m.excluir; });
+    var diaCorte = opciones.diaCorte || 0;
+    var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
     var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
     var porCat = {}, porIngreso = {};
@@ -150,7 +208,7 @@
 
   /** Serie mensual para gráficos: [{mes, ingresos, gastos, balance}] (ascendente) */
   function serieMensual(movs, opciones) {
-    return mesesDisponibles(movs).reverse().map(function (mes) {
+    return mesesDisponibles(movs, (opciones || {}).diaCorte).reverse().map(function (mes) {
       var r = resumenMes(movs, mes, opciones);
       return { mes: mes, ingresos: r.ingresos, gastos: r.gastos, ahorro: r.ahorro, balance: r.balance };
     });
@@ -159,6 +217,10 @@
   var api = {
     aColones: aColones,
     mesesDisponibles: mesesDisponibles,
+    periodoDe: periodoDe,
+    periodoMovimiento: periodoMovimiento,
+    rangoPeriodo: rangoPeriodo,
+    etiquetaPeriodo: etiquetaPeriodo,
     resumenMes: resumenMes,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual

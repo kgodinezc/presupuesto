@@ -11,7 +11,7 @@
   <header class="barra">
     <div class="marca">💰 <span>Presupuesto Familiar</span></div>
     <label class="selector-mes">
-      <span class="sr">Mes</span>
+      <span class="sr">Periodo</span>
       <select id="mes"></select>
     </label>
   </header>
@@ -19,6 +19,7 @@
   <nav class="pestanas" role="tablist">
     <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
     <button role="tab" data-tab="movimientos">Movimientos</button>
+    <button role="tab" data-tab="estado">Estado de cuenta</button>
     <button role="tab" data-tab="agregar">Agregar</button>
     <button role="tab" data-tab="presupuesto">Presupuesto</button>
     <button role="tab" data-tab="datos">Datos</button>
@@ -71,6 +72,26 @@
         </div>
         <p id="total-filtro" class="ayuda"></p>
       </div>
+    </section>
+
+    <!-- ESTADO DE CUENTA -->
+    <section id="tab-estado" class="tab">
+      <div class="tarjeta formulario">
+        <h2>Estado de cuenta de la tarjeta</h2>
+        <p class="ayuda">Cargue el PDF del estado de cuenta de BAC al cierre de cada periodo. Se lee aquí mismo,
+          en su navegador (no se sube a ningún servidor), y se compara cargo por cargo con sus movimientos.</p>
+        <label>Archivo PDF del estado de cuenta
+          <input id="ec-archivo" type="file" accept="application/pdf,.pdf">
+        </label>
+        <label id="ec-clave-envoltura" hidden>El PDF tiene contraseña
+          <input id="ec-clave" type="password" autocomplete="off" placeholder="Contraseña del PDF">
+        </label>
+        <p id="ec-estado" class="ayuda"></p>
+        <label id="ec-selector-envoltura" hidden>Estados cargados
+          <select id="ec-selector"></select>
+        </label>
+      </div>
+      <div id="ec-resultado"></div>
     </section>
 
     <!-- AGREGAR -->
@@ -137,6 +158,11 @@
           <label>Tipo de cambio (₡ por US$)
             <input id="tipo-cambio" type="number" step="0.01" min="1">
           </label>
+          <label>Día de corte de la tarjeta (0 = mes calendario)
+            <input id="dia-corte" type="number" step="1" min="0" max="31">
+          </label>
+          <p class="ayuda">Con día de corte 6, cada periodo va del 7 de un mes al 6 del siguiente, igual que el
+            estado de cuenta. Se ajusta solo al cargar un estado de cuenta.</p>
           <label>Importar archivo JSON (respaldo o exportado)
             <input id="archivo" type="file" accept=".json,application/json">
           </label>
@@ -156,6 +182,7 @@
   <script src="js/core/parser.js"></script>
   <script src="js/core/categorias.js"></script>
   <script src="js/core/resumen.js"></script>
+  <script src="js/core/estadoCuenta.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
