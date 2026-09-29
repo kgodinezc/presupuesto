@@ -59,7 +59,7 @@
 
   /**
    * Nombre del comercio a partir de la descripción del estado:
-   * "AUTO MERCADO RIO ORO_ SAN | JOSE_ CRI" -> "AUTO MERCADO RIO ORO"
+   * "AUTO MERCADO CENTRO_ SAN | JOSE_ CRI" -> "AUTO MERCADO CENTRO"
    * "LA ARTESANIA DEL QUESOSAN | JOSE_ CRI" -> "LA ARTESANIA DEL QUESO" (campo de 22 caracteres)
    */
   function comercioEC(desc) {
