@@ -68,10 +68,22 @@
   function opciones() {
     return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos, diaCorte: diaCorte() };
   }
+  /** Categorías de gasto: las predeterminadas más las propias que tenga el presupuesto (p. ej. de la hoja). */
+  function categoriasGasto() {
+    var lista = P.CATEGORIAS_GASTO.map(function (c) { return { nombre: c.nombre, icono: c.icono, esAhorro: !!c.esAhorro }; });
+    var conocidas = {};
+    lista.forEach(function (c) { conocidas[c.nombre] = true; });
+    Object.keys(estado.presupuestos).forEach(function (k) {
+      if (!conocidas[k] && k.charAt(0) !== '_' && P.CATEGORIAS_INGRESO.indexOf(k) < 0 && k !== P.CATEGORIA_TRANSFERENCIA) {
+        lista.splice(lista.length - 1, 0, { nombre: k, icono: P.iconoDe(k), esAhorro: false }); // antes de "Otros"
+      }
+    });
+    return lista;
+  }
   function categoriasPara(tipo) {
     if (tipo === 'ingreso') return P.CATEGORIAS_INGRESO;
     if (tipo === 'transferencia') return [P.CATEGORIA_TRANSFERENCIA];
-    return P.CATEGORIAS_GASTO.map(function (c) { return c.nombre; });
+    return categoriasGasto().map(function (c) { return c.nombre; });
   }
   function aviso(txt) {
     var t = $('#toast');
@@ -254,15 +266,18 @@
   // ------------------------------------------------------------ Render: Presupuesto y formularios
 
   function renderPresupuesto() {
-    $('#lista-presupuesto').innerHTML = P.CATEGORIAS_GASTO.map(function (c) {
+    $('#lista-presupuesto').innerHTML = categoriasGasto().map(function (c) {
       return '<label>' + c.icono + ' ' + esc(c.nombre) +
         '<input type="number" min="0" step="1000" name="' + esc(c.nombre) + '" value="' +
         (estado.presupuestos[c.nombre] || 0) + '"></label>';
     }).join('');
-    var total = P.CATEGORIAS_GASTO.reduce(function (s, c) {
+    var total = categoriasGasto().reduce(function (s, c) {
       return s + (c.esAhorro ? 0 : (estado.presupuestos[c.nombre] || 0));
     }, 0);
-    $('#total-presupuesto').textContent = 'Total de gastos presupuestados: ' + crc(total) + ' por mes.';
+    $('#total-presupuesto').textContent = 'Total de gastos presupuestados: ' + crc(total) + ' por periodo.' +
+      (estado.ajustes.url && estado.ajustes.token
+        ? ' Con la hoja de Google conectada, el presupuesto se toma de su pestaña Presupuesto: edítelo allá.'
+        : '');
   }
 
   function renderFormManual() {
@@ -279,6 +294,7 @@
     f.token.value = estado.ajustes.token || '';
     $('#tipo-cambio').value = estado.ajustes.tipoCambio;
     $('#dia-corte').value = diaCorte();
+    renderEstadoSync();
   }
 
   function render() {
@@ -364,7 +380,7 @@
 
   $('#form-presupuesto').addEventListener('submit', function (e) {
     e.preventDefault();
-    P.CATEGORIAS_GASTO.forEach(function (c) {
+    categoriasGasto().forEach(function (c) {
       estado.presupuestos[c.nombre] = parseFloat(e.target.elements[c.nombre].value) || 0;
     });
     guardar(); renderPresupuesto(); render();
@@ -373,30 +389,90 @@
 
   $('#form-sync').addEventListener('submit', function (e) {
     e.preventDefault();
-    var url = e.target.url.value.trim();
-    var token = e.target.token.value.trim();
-    estado.ajustes.url = url;
-    estado.ajustes.token = token;
+    estado.ajustes.url = e.target.url.value.trim();
+    estado.ajustes.token = e.target.token.value.trim();
     guardar();
-    if (!url || !token) { aviso('Ingrese la URL y el token.'); return; }
-    $('#sync-estado').textContent = 'Sincronizando…';
-    obtenerDatosGoogle(url, token)
+    if (!estado.ajustes.url || !estado.ajustes.token) { aviso('Ingrese la URL y el token.'); return; }
+    sincronizar(false);
+  });
+
+  // ------------------------------------------------------------ Sincronización automática
+  //
+  // La hoja de Google lee los correos cada hora. La app trae esos datos sola:
+  // al abrirse, al volver a su pestaña y cada 15 minutos mientras está abierta.
+
+  var CADA_MS = 15 * 60 * 1000;
+  var sincronizando = false;
+
+  function sincronizar(silencioso) {
+    var url = estado.ajustes.url, token = estado.ajustes.token;
+    if (!url || !token || sincronizando) return Promise.resolve();
+    sincronizando = true;
+    if (!silencioso) $('#sync-estado').textContent = 'Sincronizando…';
+    return obtenerDatosGoogle(url, token)
       .then(function (datos) {
         if (datos.error) throw new Error(datos.error);
         var n = fusionar(datos.movimientos || []);
         if (datos.tipoCambio) estado.ajustes.tipoCambio = datos.tipoCambio;
         if (datos.diaCorte > 0) estado.ajustes.diaCorte = datos.diaCorte;
+        // La hoja manda en el presupuesto (incluye categorías propias como "Familia …")
+        if (datos.presupuestos && Object.keys(datos.presupuestos).length) {
+          estado.presupuestos = Object.assign({}, datos.presupuestos);
+          renderPresupuesto();
+        }
+        estado.ajustes.ultimaSync = new Date().toISOString();
+        estado.ajustes.errorSync = '';
         guardar(); render(); renderDatos();
-        $('#sync-estado').textContent = '✅ ' + n + ' movimientos nuevos (' + new Date().toLocaleString('es-CR') + ').';
+        if (n && silencioso) aviso(n === 1 ? '1 movimiento nuevo del banco.' : n + ' movimientos nuevos del banco.');
+        if (!silencioso) aviso(n ? n + ' movimientos nuevos.' : 'Todo al día.');
       })
       .catch(function (err) {
-        $('#sync-estado').innerHTML = '❌ No se pudo sincronizar: ' + esc(err.message) +
-          '<br>Revise: (1) la URL termina en <b>/exec</b>; (2) la implementación tiene acceso ' +
-          '<b>“Cualquier persona”</b>; (3) si cambió el código, cree una <b>versión nueva</b> de la implementación. ' +
-          'Prueba rápida: abra <a target="_blank" rel="noopener" href="' + esc(url) + '?token=' +
-          encodeURIComponent(token) + '">este enlace</a>; debería mostrar texto que empieza con {"generado".';
-      });
-  });
+        estado.ajustes.errorSync = err.message || String(err);
+        guardar(); renderEstadoSync();
+        if (!silencioso) aviso('No se pudo sincronizar.');
+      })
+      .then(function () { sincronizando = false; });
+  }
+
+  function haceCuanto(iso) {
+    var min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    if (min < 1) return 'hace un momento';
+    if (min < 60) return 'hace ' + min + ' min';
+    var h = Math.round(min / 60);
+    return h < 24 ? 'hace ' + h + ' h' : new Date(iso).toLocaleString('es-CR');
+  }
+
+  function renderEstadoSync() {
+    var a = estado.ajustes;
+    var txt = '';
+    if (a.errorSync) {
+      var url = esc(a.url), tok = encodeURIComponent(a.token || '');
+      $('#sync-estado').innerHTML = '❌ No se pudo sincronizar: ' + esc(a.errorSync) +
+        '<br>Revise: (1) la URL termina en <b>/exec</b>; (2) la implementación tiene acceso ' +
+        '<b>“Cualquier persona”</b>; (3) si cambió el código, cree una <b>versión nueva</b> de la implementación. ' +
+        'Prueba rápida: abra <a target="_blank" rel="noopener" href="' + url + '?token=' + tok +
+        '">este enlace</a>; debería mostrar texto que empieza con {"generado".';
+    } else {
+      if (a.ultimaSync) txt = '✅ Sincronizado ' + haceCuanto(a.ultimaSync) + '. Se actualiza sola cada 15 minutos mientras la app está abierta.';
+      else if (a.url && a.token) txt = 'Se sincroniza sola al abrir la app y cada 15 minutos.';
+      $('#sync-estado').textContent = txt;
+    }
+    var ind = $('#sync-indicador');
+    if (ind) {
+      ind.hidden = !(a.url && a.token);
+      ind.textContent = a.errorSync ? '⚠️ Sin sincronizar' : (a.ultimaSync ? '🔄 ' + haceCuanto(a.ultimaSync) : '🔄');
+      ind.title = a.errorSync ? 'Error al sincronizar: ' + a.errorSync : 'Toque para sincronizar ahora';
+    }
+  }
+
+  function sincronizarSiHaceFalta() {
+    var ultima = Date.parse(estado.ajustes.ultimaSync || 0) || 0;
+    if (document.visibilityState === 'visible' && Date.now() - ultima > 5 * 60 * 1000) sincronizar(true);
+  }
+
+  document.addEventListener('visibilitychange', sincronizarSiHaceFalta);
+  setInterval(function () { if (document.visibilityState === 'visible') sincronizar(true); }, CADA_MS);
+  setInterval(renderEstadoSync, 60 * 1000);
 
   /** Pide los datos a Apps Script: primero con fetch y, si el navegador lo bloquea, con JSONP. */
   function obtenerDatosGoogle(url, token) {
@@ -739,10 +815,15 @@
     }
   });
 
+  var indicador = $('#sync-indicador');
+  if (indicador) indicador.addEventListener('click', function () { sincronizar(false); });
+
   // ------------------------------------------------------------ Inicio
 
   render();
   renderPresupuesto();
   renderFormManual();
   renderDatos();
+  renderEstadoSync();
+  sincronizar(true);
 })();

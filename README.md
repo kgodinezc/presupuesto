@@ -86,6 +86,10 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
    (Ejecutar como: *yo*; Acceso: *cualquier persona*). Copie la URL que termina en `/exec`.
 3. En la app web, pestaña **Datos**, pegue la URL y el token
    (**💰 Presupuesto → Ver token para la app web**) y pulse **Sincronizar ahora**.
+   Desde entonces la app **se sincroniza sola**: al abrirse, al volver a su pestaña y cada 15 minutos
+   mientras está abierta. El indicador del encabezado muestra la última sincronización; tóquelo para
+   sincronizar al momento. El presupuesto (incluidas categorías propias que agregue en la hoja, como
+   "Familia …") también se toma de la hoja.
 
 > El token evita que alguien que conozca la URL vea sus datos. No lo comparta.
 
