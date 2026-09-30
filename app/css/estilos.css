@@ -47,7 +47,10 @@ body {
   padding: 12px 16px; background: var(--superficie); border-bottom: 1px solid var(--borde);
   position: sticky; top: 0; z-index: 2;
 }
-.marca { font-weight: 700; font-size: 17px; }
+.marca { font-weight: 700; font-size: 17px; margin-right: auto; }
+.sync-indicador {
+  border: 0; background: none; color: var(--suave); font-size: 13px; padding: 4px 6px; width: auto; white-space: nowrap;
+}
 
 .pestanas {
   display: flex; gap: 4px; overflow-x: auto; padding: 8px 16px;
