@@ -454,6 +454,20 @@
   }
 
   /**
+   * Mes al que corresponde un periodo, con su rango de corte:
+   * "Octubre 2026 (7 set – 6 oct)". Sin día de corte: "Octubre 2026".
+   * Como en el estado de cuenta de BAC, el periodo lleva el nombre del mes en que cierra.
+   */
+  function nombreMesCorte(clave, diaCorte) {
+    if (!clave) return '';
+    var mes = MESES_LARGOS[+clave.slice(5, 7) - 1] + ' ' + clave.slice(0, 4);
+    if (!diaCorte) return mes;
+    var r = rangoPeriodo(clave, diaCorte);
+    var f = function (d) { return (+d.slice(8, 10)) + ' ' + MESES_CORTOS[+d.slice(5, 7) - 1]; };
+    return mes + ' (' + f(r.inicio) + ' – ' + f(r.fin) + ')';
+  }
+
+  /**
    * Periodo de un movimiento. Si se concilió con un estado de cuenta, manda el
    * periodo del estado (el banco agrupa por fecha de registro, que puede ser
    * posterior a la compra); si no, se calcula por fecha y día de corte.
@@ -599,6 +613,7 @@
     periodoMovimiento: periodoMovimiento,
     rangoPeriodo: rangoPeriodo,
     etiquetaPeriodo: etiquetaPeriodo,
+    nombreMesCorte: nombreMesCorte,
     resumenMes: resumenMes,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual
@@ -1046,8 +1061,8 @@ var CONFIG = {
 };
 
 var COLUMNAS = ['id', 'fecha', 'tipo', 'categoria', 'descripcion', 'comercio', 'monto', 'moneda',
-  'montoCRC', 'tarjeta', 'ciudad', 'referencia', 'autorizacion', 'fuente', 'nota', 'excluir'];
-var COLUMNAS_TEXTO = ['id', 'fecha', 'tarjeta', 'referencia', 'autorizacion'];
+  'montoCRC', 'tarjeta', 'ciudad', 'referencia', 'autorizacion', 'fuente', 'nota', 'excluir', 'mesCorte'];
+var COLUMNAS_TEXTO = ['id', 'fecha', 'tarjeta', 'referencia', 'autorizacion', 'mesCorte'];
 
 // ---------------------------------------------------------------- Menú
 
@@ -1056,7 +1071,7 @@ function onOpen() {
     .addItem('1. Configurar (primera vez)', 'configurar')
     .addItem('Importar correos ahora', 'importarCorreos')
     .addItem('Recategorizar con reglas', 'recategorizarTodo')
-    .addItem('Actualizar resumen', 'actualizarResumen')
+    .addItem('Actualizar resumen y mes de corte', 'actualizarResumen')
     .addSeparator()
     .addItem('Ver token para la app web', 'mostrarToken')
     .addToUi();
@@ -1126,6 +1141,7 @@ function importarCorreos(dias) {
   leerMovimientos_(hoja).forEach(function (m) { existentes[m.id] = true; });
   var reglas = leerReglas_(ss);
   var tc = leerTipoCambio_(ss);
+  var diaCorte = leerDiaCorte_(ss);
 
   var consulta = CONFIG.CONSULTA_GMAIL + ' newer_than:' + dias + 'd';
   var nuevos = [];
@@ -1153,7 +1169,7 @@ function importarCorreos(dias) {
 
   if (nuevos.length) {
     nuevos.sort(function (a, b) { return a.fecha < b.fecha ? -1 : 1; });
-    var filas = nuevos.map(function (m) { return filaDe_(m, tc); });
+    var filas = nuevos.map(function (m) { return filaDe_(m, tc, diaCorte); });
     var filaInicio = hoja.getLastRow() + 1;
     // Texto plano para que Sheets no convierta ids, fechas ni referencias
     // (p. ej. "092326364623" perdería el cero inicial).
@@ -1184,6 +1200,8 @@ function recategorizarTodo() {
 
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  asegurarAjuste_(ss, '_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO);
+  actualizarMesCorte_(ss);
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
   var diaCorte = leerDiaCorte_(ss);
   var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss), diaCorte: diaCorte };
@@ -1263,11 +1281,48 @@ function obtenerHoja_(ss, nombre) {
   return ss.getSheetByName(nombre) || ss.insertSheet(nombre);
 }
 
-function filaDe_(m, tc) {
+/** Texto de la columna mesCorte: "Octubre 2026 (7 set – 6 oct)". */
+function mesCorteDe_(fecha, diaCorte) {
+  return Presupuesto.nombreMesCorte(Presupuesto.periodoDe(fecha, diaCorte), diaCorte);
+}
+
+/**
+ * Llena la columna mesCorte de todos los movimientos según el _diaCorte actual.
+ * Agrega el encabezado si la hoja es anterior a esta columna.
+ */
+function actualizarMesCorte_(ss) {
+  var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
+  if (!hoja || hoja.getLastRow() < 1) return;
+  var col = COLUMNAS.indexOf('mesCorte') + 1;
+  if (hoja.getRange(1, col).getValue() !== 'mesCorte') {
+    hoja.getRange(1, col).setValue('mesCorte').setFontWeight('bold').setBackground('#e8f0fe');
+  }
+  var n = hoja.getLastRow() - 1;
+  if (n < 1) return;
+  var diaCorte = leerDiaCorte_(ss);
+  var colFecha = COLUMNAS.indexOf('fecha') + 1;
+  var fechas = hoja.getRange(2, colFecha, n, 1).getValues();
+  var valores = fechas.map(function (f) {
+    var fecha = f[0] instanceof Date
+      ? Utilities.formatDate(f[0], 'America/Costa_Rica', "yyyy-MM-dd'T'HH:mm")
+      : String(f[0] || '');
+    return [fecha ? mesCorteDe_(fecha, diaCorte) : ''];
+  });
+  hoja.getRange(2, col, n, 1).setNumberFormat('@').setValues(valores);
+}
+
+/** Agrega una fila de ajuste (p. ej. _diaCorte) a la hoja Presupuesto si no existe. */
+function asegurarAjuste_(ss, nombre, valor) {
+  var hoja = ss.getSheetByName(CONFIG.HOJA_PRESUPUESTO);
+  if (hoja && leerAjuste_(ss, nombre) === null) hoja.appendRow([nombre, valor]);
+}
+
+function filaDe_(m, tc, diaCorte) {
   var montoCRC = m.moneda === 'USD' ? Math.round(m.monto * tc * 100) / 100 : m.monto;
   var obj = {};
   for (var k in m) obj[k] = m[k];
   obj.montoCRC = montoCRC;
+  obj.mesCorte = m.fecha ? mesCorteDe_(m.fecha, diaCorte || 0) : '';
   obj.nota = m.nota || '';
   obj.excluir = m.excluir ? true : '';
   return COLUMNAS.map(function (c) { return obj[c] == null ? '' : obj[c]; });

@@ -76,6 +76,20 @@
   }
 
   /**
+   * Mes al que corresponde un periodo, con su rango de corte:
+   * "Octubre 2026 (7 set – 6 oct)". Sin día de corte: "Octubre 2026".
+   * Como en el estado de cuenta de BAC, el periodo lleva el nombre del mes en que cierra.
+   */
+  function nombreMesCorte(clave, diaCorte) {
+    if (!clave) return '';
+    var mes = MESES_LARGOS[+clave.slice(5, 7) - 1] + ' ' + clave.slice(0, 4);
+    if (!diaCorte) return mes;
+    var r = rangoPeriodo(clave, diaCorte);
+    var f = function (d) { return (+d.slice(8, 10)) + ' ' + MESES_CORTOS[+d.slice(5, 7) - 1]; };
+    return mes + ' (' + f(r.inicio) + ' – ' + f(r.fin) + ')';
+  }
+
+  /**
    * Periodo de un movimiento. Si se concilió con un estado de cuenta, manda el
    * periodo del estado (el banco agrupa por fecha de registro, que puede ser
    * posterior a la compra); si no, se calcula por fecha y día de corte.
@@ -221,6 +235,7 @@
     periodoMovimiento: periodoMovimiento,
     rangoPeriodo: rangoPeriodo,
     etiquetaPeriodo: etiquetaPeriodo,
+    nombreMesCorte: nombreMesCorte,
     resumenMes: resumenMes,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual

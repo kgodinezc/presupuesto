@@ -65,6 +65,12 @@
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
+  /** "Oct 2026": mes de corte del movimiento (respeta el periodo asignado por un estado de cuenta). */
+  function mesCorteCorto(m) {
+    var clave = P.periodoMovimiento(m, diaCorte());
+    if (!clave) return '';
+    return P.nombreMesCorte(clave, 0).slice(0, 3) + ' ' + clave.slice(0, 4);
+  }
   function opciones() {
     return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos, diaCorte: diaCorte() };
   }
@@ -229,7 +235,7 @@
     var tipo = $('#f-tipo').value;
     var cat = $('#f-categoria').value;
     var lista = estado.movimientos.filter(function (m) {
-      if (P.periodoMovimiento(m, diaCorte()) !== estado.mes) return false;
+      if (!$('#f-todos').checked && P.periodoMovimiento(m, diaCorte()) !== estado.mes) return false;
       if (tipo && m.tipo !== tipo) return false;
       if (cat && m.categoria !== cat) return false;
       if (texto && P.normalizarTexto((m.descripcion || '') + ' ' + (m.comercio || '')).indexOf(texto) < 0) return false;
@@ -244,7 +250,8 @@
       }).join('');
       var sub = [m.tarjeta, m.ciudad, m.tipo === 'transferencia' ? 'no suma al gasto' : ''].filter(Boolean).join(' · ');
       return '<tr class="' + (m.excluir ? 'excluido' : '') + '">' +
-        '<td>' + esc(String(m.fecha).slice(5, 10).split('-').reverse().join('/')) + '</td>' +
+        '<td>' + esc(String(m.fecha).slice(0, 10).split('-').reverse().slice(0, $('#f-todos').checked ? 3 : 2).join('/')) + '</td>' +
+        '<td class="mes-corte">' + esc(mesCorteCorto(m)) + '</td>' +
         '<td class="desc">' + esc(m.descripcion) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' +
         '<td><select data-id="' + esc(m.id) + '" class="sel-cat">' + opts + '</select></td>' +
         '<td class="num ' + clase + '">' + signo + ' ' + montoOriginal(m) + '</td>' +
@@ -252,7 +259,7 @@
         (m.excluir ? 'Incluir en el resumen' : 'Excluir del resumen') + '">' + (m.excluir ? '↩️' : '🚫') + '</button>' +
         (m.manual ? '<button class="icono-btn" data-borrar="' + esc(m.id) + '" title="Eliminar">🗑️</button>' : '') +
         '</td></tr>';
-    }).join('') || '<tr><td colspan="5" class="ayuda">No hay movimientos con estos filtros.</td></tr>';
+    }).join('') || '<tr><td colspan="6" class="ayuda">No hay movimientos con estos filtros.</td></tr>';
 
     var tc = estado.ajustes.tipoCambio;
     var total = lista.filter(function (m) { return !m.excluir; }).reduce(function (s, m) {
@@ -316,7 +323,7 @@
   });
 
   $('#mes').addEventListener('change', function (e) { estado.mes = e.target.value; guardar(); render(); });
-  ['#f-texto', '#f-tipo', '#f-categoria'].forEach(function (s) {
+  ['#f-texto', '#f-tipo', '#f-categoria', '#f-todos'].forEach(function (s) {
     $(s).addEventListener('input', renderMovimientos);
   });
 
@@ -547,12 +554,12 @@
   });
 
   $('#btn-exportar-csv').addEventListener('click', function () {
-    var cols = ['fecha', 'periodo', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
+    var cols = ['fecha', 'mesCorte', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
     var tc = estado.ajustes.tipoCambio;
     var filas = [cols.join(',')].concat(estado.movimientos.map(function (m) {
       var fila = Object.assign({}, m, {
         montoCRC: Math.round(P.aColones(m, tc) * 100) / 100,
-        periodo: P.periodoMovimiento(m, diaCorte())
+        mesCorte: P.nombreMesCorte(P.periodoMovimiento(m, diaCorte()), diaCorte())
       });
       return cols.map(function (c) { return '"' + String(fila[c] == null ? '' : fila[c]).replace(/"/g, '""') + '"'; }).join(',');
     }));

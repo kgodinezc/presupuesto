@@ -63,11 +63,12 @@
             <option value="reembolso">Reembolsos</option>
           </select>
           <select id="f-categoria"><option value="">Todas las categorías</option></select>
+          <label class="check"><input type="checkbox" id="f-todos"> Todos los periodos</label>
         </div>
         <p class="ayuda">Cambie la categoría de un movimiento y la app recordará ese comercio para el futuro.</p>
         <div class="tabla-envoltura">
           <table class="tabla">
-            <thead><tr><th>Fecha</th><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Mes de corte</th><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
             <tbody id="lista"></tbody>
           </table>
         </div>
