@@ -1061,8 +1061,9 @@ var CONFIG = {
 };
 
 var COLUMNAS = ['id', 'fecha', 'tipo', 'categoria', 'descripcion', 'comercio', 'monto', 'moneda',
-  'montoCRC', 'tarjeta', 'ciudad', 'referencia', 'autorizacion', 'fuente', 'nota', 'excluir', 'mesCorte'];
-var COLUMNAS_TEXTO = ['id', 'fecha', 'tarjeta', 'referencia', 'autorizacion', 'mesCorte'];
+  'montoCRC', 'tarjeta', 'ciudad', 'referencia', 'autorizacion', 'fuente', 'nota', 'excluir', 'mesCorte',
+  'mesCalendario'];
+var COLUMNAS_TEXTO = ['id', 'fecha', 'tarjeta', 'referencia', 'autorizacion', 'mesCorte', 'mesCalendario'];
 
 // ---------------------------------------------------------------- Menú
 
@@ -1071,7 +1072,7 @@ function onOpen() {
     .addItem('1. Configurar (primera vez)', 'configurar')
     .addItem('Importar correos ahora', 'importarCorreos')
     .addItem('Recategorizar con reglas', 'recategorizarTodo')
-    .addItem('Actualizar resumen y mes de corte', 'actualizarResumen')
+    .addItem('Actualizar resumen y columnas de mes', 'actualizarResumen')
     .addSeparator()
     .addItem('Ver token para la app web', 'mostrarToken')
     .addToUi();
@@ -1198,17 +1199,21 @@ function recategorizarTodo() {
 
 // ---------------------------------------------------------------- Resumen
 
+/**
+ * Resumen por MES CALENDARIO (fecha real del gasto). El mes de corte de la
+ * tarjeta se usa en la columna mesCorte y en la conciliación del estado de cuenta.
+ */
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarAjuste_(ss, '_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO);
-  actualizarMesCorte_(ss);
+  actualizarColumnasMes_(ss);
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
-  var diaCorte = leerDiaCorte_(ss);
+  var diaCorte = 0; // mes calendario
   var opciones = { tipoCambio: leerTipoCambio_(ss), presupuestos: leerPresupuestos_(ss), diaCorte: diaCorte };
   var hoja = obtenerHoja_(ss, CONFIG.HOJA_RESUMEN);
   hoja.clear();
 
-  var filas = [[diaCorte ? 'Periodo (corte día ' + diaCorte + ')' : 'Mes', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
+  var filas = [['Mes calendario', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
   Presupuesto.mesesDisponibles(movs, diaCorte).forEach(function (mes) {
     var r = Presupuesto.resumenMes(movs, mes, opciones);
     filas.push([Presupuesto.etiquetaPeriodo(mes, diaCorte), r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
@@ -1286,29 +1291,38 @@ function mesCorteDe_(fecha, diaCorte) {
   return Presupuesto.nombreMesCorte(Presupuesto.periodoDe(fecha, diaCorte), diaCorte);
 }
 
+/** Texto de la columna mesCalendario: "Octubre 2026" (mes de la fecha del movimiento). */
+function mesCalendarioDe_(fecha) {
+  return Presupuesto.nombreMesCorte(Presupuesto.periodoDe(fecha, 0), 0);
+}
+
 /**
- * Llena la columna mesCorte de todos los movimientos según el _diaCorte actual.
- * Agrega el encabezado si la hoja es anterior a esta columna.
+ * Llena las columnas mesCorte (según el _diaCorte actual) y mesCalendario de
+ * todos los movimientos. Agrega los encabezados si la hoja es anterior a ellas.
  */
-function actualizarMesCorte_(ss) {
+function actualizarColumnasMes_(ss) {
   var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
   if (!hoja || hoja.getLastRow() < 1) return;
-  var col = COLUMNAS.indexOf('mesCorte') + 1;
-  if (hoja.getRange(1, col).getValue() !== 'mesCorte') {
-    hoja.getRange(1, col).setValue('mesCorte').setFontWeight('bold').setBackground('#e8f0fe');
-  }
+  var colCorte = COLUMNAS.indexOf('mesCorte') + 1;
+  var colCal = COLUMNAS.indexOf('mesCalendario') + 1;
+  [[colCorte, 'mesCorte'], [colCal, 'mesCalendario']].forEach(function (x) {
+    if (hoja.getRange(1, x[0]).getValue() !== x[1]) {
+      hoja.getRange(1, x[0]).setValue(x[1]).setFontWeight('bold').setBackground('#e8f0fe');
+    }
+  });
   var n = hoja.getLastRow() - 1;
   if (n < 1) return;
   var diaCorte = leerDiaCorte_(ss);
   var colFecha = COLUMNAS.indexOf('fecha') + 1;
-  var fechas = hoja.getRange(2, colFecha, n, 1).getValues();
-  var valores = fechas.map(function (f) {
-    var fecha = f[0] instanceof Date
+  var fechas = hoja.getRange(2, colFecha, n, 1).getValues().map(function (f) {
+    return f[0] instanceof Date
       ? Utilities.formatDate(f[0], 'America/Costa_Rica', "yyyy-MM-dd'T'HH:mm")
       : String(f[0] || '');
-    return [fecha ? mesCorteDe_(fecha, diaCorte) : ''];
   });
-  hoja.getRange(2, col, n, 1).setNumberFormat('@').setValues(valores);
+  hoja.getRange(2, colCorte, n, 1).setNumberFormat('@')
+    .setValues(fechas.map(function (f) { return [f ? mesCorteDe_(f, diaCorte) : '']; }));
+  hoja.getRange(2, colCal, n, 1).setNumberFormat('@')
+    .setValues(fechas.map(function (f) { return [f ? mesCalendarioDe_(f) : '']; }));
 }
 
 /** Agrega una fila de ajuste (p. ej. _diaCorte) a la hoja Presupuesto si no existe. */
@@ -1323,6 +1337,7 @@ function filaDe_(m, tc, diaCorte) {
   for (var k in m) obj[k] = m[k];
   obj.montoCRC = montoCRC;
   obj.mesCorte = m.fecha ? mesCorteDe_(m.fecha, diaCorte || 0) : '';
+  obj.mesCalendario = m.fecha ? mesCalendarioDe_(m.fecha) : '';
   obj.nota = m.nota || '';
   obj.excluir = m.excluir ? true : '';
   return COLUMNAS.map(function (c) { return obj[c] == null ? '' : obj[c]; });
