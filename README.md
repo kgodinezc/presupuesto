@@ -34,6 +34,9 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
 - Movimientos manuales (efectivo, diezmos, alquiler…) y opción de **pegar el texto de un correo**.
 - **Periodos por fecha de corte**: con día de corte 6, cada periodo va del 7 de un mes al 6 del siguiente,
   igual que el estado de cuenta de la tarjeta (0 = mes calendario).
+  Cada movimiento indica su **mes de corte** (columna `mesCorte` en la hoja, columna "Mes de corte" en
+  la app y en el CSV). Igual que BAC, el periodo lleva el nombre del mes en que cierra: una compra del
+  10 de setiembre corresponde a "Octubre 2026 (7 set – 6 oct)".
 - **Estado de cuenta (PDF)**: al cierre de cada periodo cargue el PDF de BAC. Se lee en el navegador
   (no se sube a ningún servidor) y se concilia cargo por cargo con sus movimientos:
   - cargos que **no llegaron por correo** (peajes Compass, servicios domiciliados, IVA de servicios
