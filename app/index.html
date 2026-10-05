@@ -12,7 +12,7 @@
     <div class="marca">💰 <span>Presupuesto Familiar</span></div>
     <button id="sync-indicador" class="sync-indicador" type="button" hidden></button>
     <label class="selector-mes">
-      <span class="sr">Periodo</span>
+      <span class="sr">Mes</span>
       <select id="mes"></select>
     </label>
   </header>
@@ -63,12 +63,12 @@
             <option value="reembolso">Reembolsos</option>
           </select>
           <select id="f-categoria"><option value="">Todas las categorías</option></select>
-          <label class="check"><input type="checkbox" id="f-todos"> Todos los periodos</label>
+          <label class="check"><input type="checkbox" id="f-todos"> Todos los meses</label>
         </div>
         <p class="ayuda">Cambie la categoría de un movimiento y la app recordará ese comercio para el futuro.</p>
         <div class="tabla-envoltura">
           <table class="tabla">
-            <thead><tr><th>Fecha</th><th>Mes de corte</th><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Mes calendario</th><th>Mes de corte</th><th>Descripción</th><th>Categoría</th><th class="num">Monto</th><th></th></tr></thead>
             <tbody id="lista"></tbody>
           </table>
         </div>
@@ -163,8 +163,9 @@
           <label>Día de corte de la tarjeta (0 = mes calendario)
             <input id="dia-corte" type="number" step="1" min="0" max="31">
           </label>
-          <p class="ayuda">Con día de corte 6, cada periodo va del 7 de un mes al 6 del siguiente, igual que el
-            estado de cuenta. Se ajusta solo al cargar un estado de cuenta.</p>
+          <p class="ayuda">Se usa para el <b>mes de corte</b> de cada movimiento y para el estado de cuenta: con
+            día 6, el periodo va del 7 de un mes al 6 del siguiente. El Resumen usa meses calendario.
+            Se ajusta solo al cargar un estado de cuenta.</p>
           <label>Importar archivo JSON (respaldo o exportado)
             <input id="archivo" type="file" accept=".json,application/json">
           </label>

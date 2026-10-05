@@ -32,11 +32,13 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   (mismo comercio y monto en menos de 10 minutos).
 - **Dólares** convertidos a colones con el tipo de cambio configurable.
 - Movimientos manuales (efectivo, diezmos, alquiler…) y opción de **pegar el texto de un correo**.
-- **Periodos por fecha de corte**: con día de corte 6, cada periodo va del 7 de un mes al 6 del siguiente,
-  igual que el estado de cuenta de la tarjeta (0 = mes calendario).
-  Cada movimiento indica su **mes de corte** (columna `mesCorte` en la hoja, columna "Mes de corte" en
-  la app y en el CSV). Igual que BAC, el periodo lleva el nombre del mes en que cierra: una compra del
-  10 de setiembre corresponde a "Octubre 2026 (7 set – 6 oct)".
+- **Mes calendario y mes de corte**: cada movimiento indica las dos cosas (columnas `mesCalendario` y
+  `mesCorte` en la hoja, "Mes calendario" y "Mes de corte" en la app y en el CSV).
+  - El **Resumen** (app y hoja) agrupa por **mes calendario**, es decir, por la fecha real del gasto.
+  - El **mes de corte** sigue el día de corte de la tarjeta (`_diaCorte`; con 6, del 7 de un mes al 6 del
+    siguiente) y es el que usa la pestaña **Estado de cuenta**. Igual que BAC, el periodo lleva el nombre
+    del mes en que cierra: una compra del 2 de octubre es del mes calendario "Octubre 2026" y del corte
+    "Octubre 2026 (7 set – 6 oct)"; una del 7 de octubre es de "Octubre 2026" y del corte "Noviembre 2026".
 - **Estado de cuenta (PDF)**: al cierre de cada periodo cargue el PDF de BAC. Se lee en el navegador
   (no se sube a ningún servidor) y se concilia cargo por cargo con sus movimientos:
   - cargos que **no llegaron por correo** (peajes Compass, servicios domiciliados, IVA de servicios
