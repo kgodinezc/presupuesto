@@ -20,7 +20,7 @@
   <nav class="pestanas" role="tablist">
     <button role="tab" data-tab="resumen" aria-selected="true">Resumen</button>
     <button role="tab" data-tab="movimientos">Movimientos</button>
-    <button role="tab" data-tab="estado">Estado de cuenta</button>
+    <button role="tab" data-tab="estado">Estados de cuenta</button>
     <button role="tab" data-tab="agregar">Agregar</button>
     <button role="tab" data-tab="presupuesto">Presupuesto</button>
     <button role="tab" data-tab="datos">Datos</button>
@@ -48,6 +48,7 @@
           <div id="tendencia"></div>
         </div>
       </div>
+      <div id="cuentas" class="tarjeta mt" hidden></div>
     </section>
 
     <!-- MOVIMIENTOS -->
@@ -79,21 +80,23 @@
     <!-- ESTADO DE CUENTA -->
     <section id="tab-estado" class="tab">
       <div class="tarjeta formulario">
-        <h2>Estado de cuenta de la tarjeta</h2>
-        <p class="ayuda">Cargue el PDF del estado de cuenta de BAC al cierre de cada periodo. Se lee aquí mismo,
-          en su navegador (no se sube a ningún servidor), y se compara cargo por cargo con sus movimientos.</p>
-        <label>Archivo PDF del estado de cuenta
+        <h2>Estados de cuenta</h2>
+        <p class="ayuda">Cargue el PDF de BAC de la <b>tarjeta de crédito</b> (al cierre de cada periodo) o de la
+          <b>cuenta bancaria en colones o dólares</b> (al cierre de cada mes). Se lee aquí mismo, en su navegador
+          (no se sube a ningún servidor), y se compara línea por línea con sus movimientos.</p>
+        <label>Archivo PDF del estado de cuenta (tarjeta o cuenta)
           <input id="ec-archivo" type="file" accept="application/pdf,.pdf">
         </label>
         <label id="ec-clave-envoltura" hidden>El PDF tiene contraseña
           <input id="ec-clave" type="password" autocomplete="off" placeholder="Contraseña del PDF">
         </label>
         <p id="ec-estado" class="ayuda"></p>
-        <label id="ec-selector-envoltura" hidden>Estados cargados
+        <label id="ec-selector-envoltura" hidden>Estados de tarjeta cargados
           <select id="ec-selector"></select>
         </label>
       </div>
       <div id="ec-resultado"></div>
+      <div id="eb-resultado"></div>
     </section>
 
     <!-- AGREGAR -->
@@ -186,6 +189,7 @@
   <script src="js/core/categorias.js"></script>
   <script src="js/core/resumen.js"></script>
   <script src="js/core/estadoCuenta.js"></script>
+  <script src="js/core/estadoBancario.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
