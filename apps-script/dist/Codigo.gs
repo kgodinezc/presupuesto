@@ -270,8 +270,10 @@
     { nombre: 'Otros', icono: '❓', presupuesto: 40000 }
   ];
 
-  var CATEGORIAS_INGRESO = ['Salario', 'Otros ingresos'];
+  var CATEGORIAS_INGRESO = ['Salario', 'Transferencias recibidas', 'Otros ingresos'];
   var CATEGORIA_TRANSFERENCIA = 'Transferencias';
+  // Salidas de dinero que no son gasto: el gasto ya está en las compras o queda en la familia
+  var CATEGORIAS_TRANSFERENCIA = [CATEGORIA_TRANSFERENCIA, 'Pago de tarjeta', 'Entre cuentas propias'];
 
   // [patrón (regex sobre el comercio normalizado), categoría]
   var REGLAS_PREDETERMINADAS = [
@@ -322,7 +324,9 @@
    * @param {Object<string,string>=} reglasUsuario { claveComercio: categoria }
    */
   function categorizar(mov, reglasUsuario) {
-    if (mov.tipo === 'transferencia') return CATEGORIA_TRANSFERENCIA;
+    if (mov.tipo === 'transferencia') {
+      return CATEGORIAS_TRANSFERENCIA.indexOf(mov.categoria) >= 0 ? mov.categoria : CATEGORIA_TRANSFERENCIA;
+    }
     var clave = claveComercio(mov.comercio || mov.descripcion);
     if (reglasUsuario && reglasUsuario[clave]) return reglasUsuario[clave];
     var texto = normalizarTexto((mov.comercio || '') + ' ' + (mov.descripcion || ''));
@@ -344,6 +348,9 @@
     }
     if (categoria === 'Salario') return '💼';
     if (categoria === CATEGORIA_TRANSFERENCIA) return '🔁';
+    if (categoria === 'Pago de tarjeta') return '💳';
+    if (categoria === 'Entre cuentas propias') return '🏦';
+    if (categoria === 'Transferencias recibidas') return '📥';
     return '💵';
   }
 
@@ -358,6 +365,7 @@
     CATEGORIAS_GASTO: CATEGORIAS_GASTO,
     CATEGORIAS_INGRESO: CATEGORIAS_INGRESO,
     CATEGORIA_TRANSFERENCIA: CATEGORIA_TRANSFERENCIA,
+    CATEGORIAS_TRANSFERENCIA: CATEGORIAS_TRANSFERENCIA,
     REGLAS_PREDETERMINADAS: REGLAS_PREDETERMINADAS,
     categorizar: categorizar,
     claveComercio: claveComercio,
@@ -495,7 +503,7 @@
     var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
     var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
-    var porCat = {}, porIngreso = {};
+    var porCat = {}, porIngreso = {}, porTransf = {};
 
     delMes.forEach(function (m) {
       var crc = aColones(m, tc);
@@ -505,6 +513,7 @@
         porIngreso[cat] = (porIngreso[cat] || 0) + crc;
       } else if (m.tipo === 'transferencia') {
         transferencias += crc;
+        porTransf[cat] = (porTransf[cat] || 0) + crc;
       } else {
         var signo = m.tipo === 'reembolso' ? -1 : 1;
         if (Cat.esCategoriaAhorro(cat)) {
@@ -554,6 +563,9 @@
       porIngreso: Object.keys(porIngreso).map(function (k) {
         return { categoria: k, total: redondear(porIngreso[k]) };
       }),
+      porTransferencia: Object.keys(porTransf).map(function (k) {
+        return { categoria: k, total: redondear(porTransf[k]) };
+      }).sort(function (a, b) { return b.total - a.total; }),
       cantidadMovimientos: delMes.length,
       alertas: alertas(delMes, porCategoria)
     };

@@ -26,8 +26,10 @@
     { nombre: 'Otros', icono: '❓', presupuesto: 40000 }
   ];
 
-  var CATEGORIAS_INGRESO = ['Salario', 'Otros ingresos'];
+  var CATEGORIAS_INGRESO = ['Salario', 'Transferencias recibidas', 'Otros ingresos'];
   var CATEGORIA_TRANSFERENCIA = 'Transferencias';
+  // Salidas de dinero que no son gasto: el gasto ya está en las compras o queda en la familia
+  var CATEGORIAS_TRANSFERENCIA = [CATEGORIA_TRANSFERENCIA, 'Pago de tarjeta', 'Entre cuentas propias'];
 
   // [patrón (regex sobre el comercio normalizado), categoría]
   var REGLAS_PREDETERMINADAS = [
@@ -78,7 +80,9 @@
    * @param {Object<string,string>=} reglasUsuario { claveComercio: categoria }
    */
   function categorizar(mov, reglasUsuario) {
-    if (mov.tipo === 'transferencia') return CATEGORIA_TRANSFERENCIA;
+    if (mov.tipo === 'transferencia') {
+      return CATEGORIAS_TRANSFERENCIA.indexOf(mov.categoria) >= 0 ? mov.categoria : CATEGORIA_TRANSFERENCIA;
+    }
     var clave = claveComercio(mov.comercio || mov.descripcion);
     if (reglasUsuario && reglasUsuario[clave]) return reglasUsuario[clave];
     var texto = normalizarTexto((mov.comercio || '') + ' ' + (mov.descripcion || ''));
@@ -100,6 +104,9 @@
     }
     if (categoria === 'Salario') return '💼';
     if (categoria === CATEGORIA_TRANSFERENCIA) return '🔁';
+    if (categoria === 'Pago de tarjeta') return '💳';
+    if (categoria === 'Entre cuentas propias') return '🏦';
+    if (categoria === 'Transferencias recibidas') return '📥';
     return '💵';
   }
 
@@ -114,6 +121,7 @@
     CATEGORIAS_GASTO: CATEGORIAS_GASTO,
     CATEGORIAS_INGRESO: CATEGORIAS_INGRESO,
     CATEGORIA_TRANSFERENCIA: CATEGORIA_TRANSFERENCIA,
+    CATEGORIAS_TRANSFERENCIA: CATEGORIAS_TRANSFERENCIA,
     REGLAS_PREDETERMINADAS: REGLAS_PREDETERMINADAS,
     categorizar: categorizar,
     claveComercio: claveComercio,

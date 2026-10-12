@@ -117,7 +117,7 @@
     var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
     var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
-    var porCat = {}, porIngreso = {};
+    var porCat = {}, porIngreso = {}, porTransf = {};
 
     delMes.forEach(function (m) {
       var crc = aColones(m, tc);
@@ -127,6 +127,7 @@
         porIngreso[cat] = (porIngreso[cat] || 0) + crc;
       } else if (m.tipo === 'transferencia') {
         transferencias += crc;
+        porTransf[cat] = (porTransf[cat] || 0) + crc;
       } else {
         var signo = m.tipo === 'reembolso' ? -1 : 1;
         if (Cat.esCategoriaAhorro(cat)) {
@@ -176,6 +177,9 @@
       porIngreso: Object.keys(porIngreso).map(function (k) {
         return { categoria: k, total: redondear(porIngreso[k]) };
       }),
+      porTransferencia: Object.keys(porTransf).map(function (k) {
+        return { categoria: k, total: redondear(porTransf[k]) };
+      }).sort(function (a, b) { return b.total - a.total; }),
       cantidadMovimientos: delMes.length,
       alertas: alertas(delMes, porCategoria)
     };

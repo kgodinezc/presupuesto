@@ -51,6 +51,17 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   Al aplicar la conciliación, cada movimiento queda asignado al periodo del estado de cuenta. El banco
   agrupa por fecha de registro, que puede ser uno o dos días después de la compra; así el resumen de
   cada periodo cuadra con el banco.
+- **Estado de cuenta bancario (PDF)**: al cierre de cada mes cargue el PDF de la cuenta en **colones** o en
+  **dólares** (mismo botón; la app reconoce si es de tarjeta o de cuenta). Cada línea se clasifica por la
+  columna en que está (débito o crédito) y se verifica contra el cuadro resumen y el saldo del banco:
+  - **entradas**: salario, transferencias recibidas (TEF, SINPE), intereses;
+  - **salidas**: pagos de tarjeta, traslados a ahorros, transferencias y SINPE Móvil enviados, pagos de
+    servicios (Liberty, ICE, AyA…);
+  - las que ya llegaron por correo se vinculan; las demás se agregan con un clic;
+  - avisa de **posibles cobros duplicados** (mismo concepto y monto en 3 días o menos).
+
+  El **Resumen** muestra las transferencias del mes (recibidas, enviadas, pagos de tarjeta) y las
+  entradas, salidas y saldo de cada cuenta cargada.
 - Se ignoran las autorizaciones de verificación en ₡0,00 / US$0,00.
 
 ### Decisiones de diseño importantes
@@ -59,7 +70,11 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   o un traslado entre cuentas propias; como las compras con tarjeta ya se registraron una por una,
   sumarlas duplicaría el gasto. Aparecen aparte para revisarlas; si una transferencia sí es un gasto
   (p. ej. alquiler), agréguelo como movimiento manual.
-- **"Ahorro e inversión"** se muestra separado del gasto de consumo.
+- **Pagos de tarjeta** (desde la cuenta) son transferencias, no gasto: el gasto son las compras de la tarjeta.
+  Si un SINPE Móvil o una transferencia sí es un gasto, elija una categoría de gasto en **Movimientos**; la app
+  recuerda ese destinatario para los próximos estados de cuenta.
+- **"Ahorro e inversión"** se muestra separado del gasto de consumo; los traslados a cuentas de ahorro
+  (`DTR:Ahorros…`) caen ahí.
 - **Privacidad**: este repositorio es público y **no contiene datos personales**. Los movimientos
   viven en su hoja de Google y en el `localStorage` de su navegador. La carpeta `datos/` está en
   `.gitignore`.
@@ -114,7 +129,8 @@ app/
   js/core/parser.js               lee correos del banco → movimiento
   js/core/categorias.js           categorías, reglas y categorizador
   js/core/resumen.js              periodos de corte, totales, presupuesto, alertas, tendencia
-  js/core/estadoCuenta.js         lee el estado de cuenta (PDF) y lo concilia con los movimientos
+  js/core/estadoCuenta.js         lee el estado de cuenta de la tarjeta (PDF) y lo concilia con los movimientos
+  js/core/estadoBancario.js       lee el estado de la cuenta bancaria (colones/dólares) y lo concilia
   vendor/pdfjs/                   pdf.js 4.10 (Apache-2.0) para leer el PDF en el navegador
 apps-script/
   Main.js                         Gmail → Hoja, disparador, API doGet

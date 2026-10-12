@@ -16,6 +16,7 @@
       reglas: {},
       ajustes: { tipoCambio: 505, url: '', token: '', diaCorte: 0 },
       estadosCuenta: [],
+      estadosBancarios: [],
       mes: ''
     };
   }
@@ -32,6 +33,7 @@
           reglas: e.reglas || {},
           ajustes: Object.assign(base.ajustes, e.ajustes || {}),
           estadosCuenta: e.estadosCuenta || [],
+          estadosBancarios: e.estadosBancarios || [],
           mes: e.mes || ''
         };
       }
@@ -91,7 +93,7 @@
     var conocidas = {};
     lista.forEach(function (c) { conocidas[c.nombre] = true; });
     Object.keys(estado.presupuestos).forEach(function (k) {
-      if (!conocidas[k] && k.charAt(0) !== '_' && P.CATEGORIAS_INGRESO.indexOf(k) < 0 && k !== P.CATEGORIA_TRANSFERENCIA) {
+      if (!conocidas[k] && k.charAt(0) !== '_' && P.CATEGORIAS_INGRESO.indexOf(k) < 0 && P.CATEGORIAS_TRANSFERENCIA.indexOf(k) < 0) {
         lista.splice(lista.length - 1, 0, { nombre: k, icono: P.iconoDe(k), esAhorro: false }); // antes de "Otros"
       }
     });
@@ -99,7 +101,7 @@
   }
   function categoriasPara(tipo) {
     if (tipo === 'ingreso') return P.CATEGORIAS_INGRESO;
-    if (tipo === 'transferencia') return [P.CATEGORIA_TRANSFERENCIA];
+    if (tipo === 'transferencia') return P.CATEGORIAS_TRANSFERENCIA;
     return categoriasGasto().map(function (c) { return c.nombre; });
   }
   function aviso(txt) {
@@ -140,18 +142,29 @@
     return nuevos;
   }
 
+  /** Elegir una categoría de transferencia convierte un gasto en transferencia y viceversa. */
+  function tipoParaCategoria(mov, categoria) {
+    if (mov.tipo !== 'gasto' && mov.tipo !== 'transferencia') return mov.tipo;
+    return P.CATEGORIAS_TRANSFERENCIA.indexOf(categoria) >= 0 ? 'transferencia' : 'gasto';
+  }
+
   function cambiarCategoria(id, categoria, recordar) {
     var mov = estado.movimientos.find(function (m) { return m.id === id; });
     if (!mov) return;
+    var tipoNuevo = tipoParaCategoria(mov, categoria);
+    var cambioTipo = tipoNuevo !== mov.tipo;
     mov.categoria = categoria;
+    mov.tipo = tipoNuevo;
     mov.editado = true;
-    if (recordar && mov.comercio && mov.tipo !== 'transferencia') {
+    // Se recuerda el comercio; las transferencias genéricas (p. ej. "Cuenta 123") solo si pasan a gasto
+    if (recordar && mov.comercio && (mov.tipo !== 'transferencia' || cambioTipo)) {
       var clave = P.claveComercio(mov.comercio);
       estado.reglas[clave] = categoria;
       var otros = 0;
       estado.movimientos.forEach(function (m) {
-        if (m !== mov && m.tipo === mov.tipo && P.claveComercio(m.comercio) === clave) {
-          m.categoria = categoria; m.editado = true; otros++;
+        if (m === mov || P.claveComercio(m.comercio) !== clave) return;
+        if (m.tipo === mov.tipo || (cambioTipo && !m.tarjeta && (m.tipo === 'gasto' || m.tipo === 'transferencia'))) {
+          m.categoria = categoria; m.tipo = mov.tipo; m.editado = true; otros++;
         }
       });
       if (otros) aviso('También se actualizaron ' + otros + ' movimientos de ' + mov.comercio + '.');
@@ -214,7 +227,41 @@
         '</span><span class="monto pos">' + crc(i.total) + '</span></div>';
     }).join('') : '<p class="ayuda">Sin ingresos registrados este mes.</p>';
 
+    renderCuentas(r);
     renderTendencia();
+  }
+
+  /** Flujo de dinero del mes: transferencias por tipo y saldos de las cuentas bancarias cargadas. */
+  function renderCuentas(r) {
+    var html = '';
+    var recibidas = r.porIngreso.filter(function (i) { return i.categoria === 'Transferencias recibidas'; })[0];
+    if (r.porTransferencia.length || recibidas) {
+      html += '<h2>Transferencias del mes</h2>';
+      if (recibidas) {
+        html += '<div class="cat"><span class="nombre">📥 Recibidas</span><span class="monto pos">' + crc(recibidas.total) + '</span></div>';
+      }
+      html += r.porTransferencia.map(function (t) {
+        return '<div class="cat"><span class="nombre">' + P.iconoDe(t.categoria) + ' ' + esc(t.categoria === P.CATEGORIA_TRANSFERENCIA ? 'Enviadas' : t.categoria) +
+          '</span><span class="monto">' + crc(t.total) + '</span></div>';
+      }).join('');
+      html += '<p class="ayuda">Las transferencias enviadas y los pagos de tarjeta no se suman al gasto.</p>';
+    }
+    var cuentas = estado.estadosBancarios.filter(function (eb) { return eb.clave === estado.mes; });
+    if (cuentas.length) {
+      html += '<h2' + (html ? ' class="mt"' : '') + '>Cuentas bancarias</h2><div class="tabla-envoltura"><table class="tabla">' +
+        '<thead><tr><th>Cuenta</th><th class="num">Entradas</th><th class="num">Salidas</th><th class="num">Saldo al corte</th></tr></thead><tbody>' +
+        cuentas.map(function (eb) {
+          var cre = 0, deb = 0;
+          eb.lineas.forEach(function (l) { if (l.esCredito) cre += l.monto; else deb += l.monto; });
+          return '<tr><td>' + (eb.moneda === 'USD' ? 'Dólares' : 'Colones') + ' ···' + esc(eb.cuenta) + '</td><td class="num pos">' +
+            fmtMoneda(cre, eb.moneda) + '</td><td class="num neg">' + fmtMoneda(deb, eb.moneda) + '</td><td class="num">' +
+            fmtMoneda(eb.saldoFinal, eb.moneda) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    } else if (estado.estadosBancarios.length || r.porTransferencia.length) {
+      html += '<p class="ayuda">Cargue el estado de cuenta bancario de este mes en <b>Estados de cuenta</b> para ver las entradas y salidas de sus cuentas.</p>';
+    }
+    $('#cuentas').innerHTML = html;
+    $('#cuentas').hidden = !html;
   }
 
   function renderTendencia() {
@@ -233,12 +280,28 @@
   // ------------------------------------------------------------ Render: Movimientos
 
   function renderFiltroCategorias() {
-    var todas = categoriasPara('gasto').concat(P.CATEGORIAS_INGRESO, [P.CATEGORIA_TRANSFERENCIA]);
+    var todas = categoriasPara('gasto').concat(P.CATEGORIAS_INGRESO, P.CATEGORIAS_TRANSFERENCIA);
     var sel = $('#f-categoria');
     var actual = sel.value;
     sel.innerHTML = '<option value="">Todas las categorías</option>' + todas.map(function (c) {
       return '<option' + (c === actual ? ' selected' : '') + '>' + esc(c) + '</option>';
     }).join('');
+  }
+
+  function opcionesDe(lista, actual) {
+    return lista.map(function (c) {
+      return '<option' + (c === actual ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+  }
+  /** Transferencias y gastos fuera de tarjeta pueden pasar de un tipo al otro. */
+  function opcionesCategoria(m) {
+    if (m.tipo === 'transferencia' || (m.tipo === 'gasto' && !m.tarjeta)) {
+      var transf = '<optgroup label="Transferencia (no suma al gasto)">' + opcionesDe(categoriasPara('transferencia'), m.categoria) + '</optgroup>';
+      var gasto = '<optgroup label="' + (m.tipo === 'gasto' ? 'Gasto' : 'Contar como gasto') + '">' +
+        opcionesDe(categoriasPara('gasto'), m.categoria) + '</optgroup>';
+      return m.tipo === 'gasto' ? gasto + transf : transf + gasto;
+    }
+    return opcionesDe(categoriasPara(m.tipo === 'reembolso' ? 'gasto' : m.tipo), m.categoria);
   }
 
   function renderMovimientos() {
@@ -256,10 +319,9 @@
     $('#lista').innerHTML = lista.map(function (m) {
       var signo = m.tipo === 'ingreso' || m.tipo === 'reembolso' ? '+' : '−';
       var clase = m.tipo === 'ingreso' || m.tipo === 'reembolso' ? 'pos' : (m.tipo === 'transferencia' ? '' : 'neg');
-      var opts = categoriasPara(m.tipo === 'reembolso' ? 'gasto' : m.tipo).map(function (c) {
-        return '<option' + (c === m.categoria ? ' selected' : '') + '>' + esc(c) + '</option>';
-      }).join('');
-      var sub = [m.tarjeta, m.ciudad, m.tipo === 'transferencia' ? 'no suma al gasto' : ''].filter(Boolean).join(' · ');
+      var opts = opcionesCategoria(m);
+      var sub = [m.tarjeta, m.ciudad, m.cuenta ? 'Cuenta ···' + m.cuenta : '',
+        m.tipo === 'transferencia' ? 'no suma al gasto' : ''].filter(Boolean).join(' · ');
       return '<tr class="' + (m.excluir ? 'excluido' : '') + '">' +
         '<td>' + esc(String(m.fecha).slice(0, 10).split('-').reverse().slice(0, $('#f-todos').checked ? 3 : 2).join('/')) + '</td>' +
         '<td class="mes-corte">' + esc(mesCalendarioCorto(m)) + '</td>' +
@@ -322,6 +384,7 @@
     renderFiltroCategorias();
     renderMovimientos();
     renderEstadoCuenta();
+    renderEstadoBancario();
   }
 
   // ------------------------------------------------------------ Eventos
@@ -541,6 +604,9 @@
       if (datos.reglas) estado.reglas = Object.assign(estado.reglas, datos.reglas);
       if (datos.tipoCambio) estado.ajustes.tipoCambio = datos.tipoCambio;
       if (datos.diaCorte != null) estado.ajustes.diaCorte = datos.diaCorte;
+      if (Array.isArray(datos.estadosBancarios)) {
+        datos.estadosBancarios.forEach(function (eb) { guardarEstadoBancario(eb); });
+      }
       if (Array.isArray(datos.estadosCuenta)) {
         datos.estadosCuenta.forEach(function (ec) { guardarEstadoCuenta(ec); });
       }
@@ -559,7 +625,8 @@
       reglas: estado.reglas,
       tipoCambio: estado.ajustes.tipoCambio,
       diaCorte: diaCorte(),
-      estadosCuenta: estado.estadosCuenta
+      estadosCuenta: estado.estadosCuenta,
+      estadosBancarios: estado.estadosBancarios
     };
     descargar('presupuesto-respaldo-' + new Date().toISOString().slice(0, 10) + '.json',
       JSON.stringify(respaldo, null, 2), 'application/json');
@@ -601,8 +668,8 @@
     return cargarPdfJs.promesa;
   }
 
-  /** Lee el PDF y devuelve sus filas de texto. */
-  function leerFilasPdf(archivo, clave) {
+  /** Lee el PDF y devuelve sus fragmentos de texto con su posición. */
+  function leerItemsPdf(archivo, clave) {
     return Promise.all([cargarPdfJs(), archivo.arrayBuffer()]).then(function (r) {
       var pdfjs = r[0];
       return pdfjs.getDocument({ data: new Uint8Array(r[1]), password: clave || '' }).promise;
@@ -612,13 +679,21 @@
       return Promise.all(paginas.map(function (n) {
         return doc.getPage(n).then(function (p) { return p.getTextContent(); }).then(function (tc) {
           return tc.items.map(function (it) {
-            return { pagina: n, str: it.str, x: it.transform[4], y: it.transform[5] };
+            return { pagina: n, str: it.str, x: it.transform[4], y: it.transform[5], ancho: it.width };
           });
         });
       }));
     }).then(function (porPagina) {
-      return P.agruparFilas([].concat.apply([], porPagina));
+      return [].concat.apply([], porPagina);
     });
+  }
+
+  function guardarEstadoBancario(eb) {
+    estado.estadosBancarios = estado.estadosBancarios.filter(function (x) {
+      return !(x.clave === eb.clave && x.cuenta === eb.cuenta && x.moneda === eb.moneda);
+    });
+    estado.estadosBancarios.push(eb);
+    estado.estadosBancarios.sort(function (a, b) { return a.clave < b.clave ? 1 : (a.clave > b.clave ? -1 : (a.moneda < b.moneda ? -1 : 1)); });
   }
 
   function guardarEstadoCuenta(ec) {
@@ -632,10 +707,26 @@
 
   function procesarPdf(archivo, clave) {
     $('#ec-estado').textContent = 'Leyendo el estado de cuenta…';
-    leerFilasPdf(archivo, clave).then(function (filas) {
-      var ec = P.parsearEstadoCuenta(filas);
+    leerItemsPdf(archivo, clave).then(function (items) {
+      var ec = P.parsearEstadoCuenta(P.agruparFilas(items));
       if (!ec.tarjetas.length || !ec.fechaCorte) {
-        throw new Error('No se reconoció un estado de cuenta de tarjeta de BAC en este PDF.');
+        var eb = P.parsearEstadoBancario(items);
+        if (!eb.fechaCorte || !eb.lineas.length) {
+          throw new Error('No se reconoció un estado de cuenta de BAC (tarjeta o cuenta bancaria) en este PDF.');
+        }
+        eb.importado = new Date().toISOString();
+        guardarEstadoBancario(eb);
+        ebActual = ebClave(eb);
+        pdfPendiente = null;
+        $('#ec-clave-envoltura').hidden = true;
+        $('#ec-clave').value = '';
+        guardar(); render();
+        var conc = P.conciliarBanco(eb, estado.movimientos, opcionesBanco());
+        $('#ec-estado').textContent = '✅ ' + eb.nombre + ' leída: ' + eb.lineas.length + ' movimientos' +
+          (conc.resumen.cuadra ? ', cuadra con los totales del banco.' : '. ⚠️ No cuadra con los totales del banco: revise.');
+        var sec = $('#eb-resultado');
+        if (sec && sec.scrollIntoView) sec.scrollIntoView({ behavior: 'smooth' });
+        return;
       }
       ec.importado = new Date().toISOString();
       guardarEstadoCuenta(ec);
@@ -829,6 +920,144 @@
     } else if (e.target.id === 'ec-borrar' && confirm('¿Quitar este estado de cuenta? Los movimientos ya agregados se mantienen.')) {
       estado.estadosCuenta = estado.estadosCuenta.filter(function (x) { return x !== datos.ec; });
       ecActual = '';
+      guardar(); render();
+    }
+  });
+
+  // ------------------------------------------------------------ Estado de cuenta bancario (PDF)
+
+  var ebActual = '';         // clave del estado bancario mostrado: 'YYYY-MM|moneda|cuenta'
+
+  function ebClave(eb) { return eb.clave + '|' + eb.moneda + '|' + eb.cuenta; }
+  /** Últimos 4 dígitos de las tarjetas de crédito conocidas (sus compras no salen de la cuenta). */
+  function tarjetasCredito() {
+    var t = {};
+    estado.estadosCuenta.forEach(function (ec) { ec.tarjetas.forEach(function (x) { t[x.tarjeta] = true; }); });
+    return Object.keys(t);
+  }
+  function opcionesBanco() { return { reglas: estado.reglas, tarjetasCredito: tarjetasCredito() }; }
+
+  function renderEstadoBancario() {
+    var cont = $('#eb-resultado');
+    var lista = estado.estadosBancarios;
+    if (!lista.length) { cont.innerHTML = ''; cont._conciliacion = null; return; }
+    if (!ebActual || !lista.some(function (x) { return ebClave(x) === ebActual; })) ebActual = ebClave(lista[0]);
+    var eb = lista.filter(function (x) { return ebClave(x) === ebActual; })[0];
+    var c = P.conciliarBanco(eb, estado.movimientos, opcionesBanco());
+    var m$ = function (n) { return fmtMoneda(n, eb.moneda); };
+
+    var html = '<div class="tarjeta"><h2>Cuentas bancarias</h2>';
+    if (lista.length > 1) {
+      html += '<label class="formulario-linea">Estado mostrado <select id="eb-selector">' + lista.map(function (x) {
+        return '<option value="' + esc(ebClave(x)) + '"' + (ebClave(x) === ebActual ? ' selected' : '') + '>' + esc(x.nombre) + '</option>';
+      }).join('') + '</select></label>';
+    }
+    html += '<h2 class="mt">' + esc(eb.nombre) + ' <small>corte ' + fechaCorta(eb.fechaCorte) + '/' + eb.fechaCorte.slice(0, 4) + '</small></h2>' +
+      '<div class="tabla-envoltura"><table class="tabla"><tbody>' +
+      '<tr><td>Saldo anterior</td><td class="num">' + m$(eb.saldoAnterior) + '</td></tr>' +
+      '<tr><td>+ Entradas (créditos)</td><td class="num pos">' + m$(c.resumen.creditos) + '</td></tr>' +
+      '<tr><td>− Salidas (débitos)</td><td class="num neg">' + m$(c.resumen.debitos) + '</td></tr>' +
+      '<tr><td><b>Saldo al corte</b></td><td class="num"><b>' + m$(eb.saldoFinal) + '</b></td></tr>' +
+      '</tbody></table></div><p class="ayuda">' + (c.resumen.cuadra
+        ? '✅ Cuadra con el cuadro resumen del banco (' + eb.lineas.length + ' movimientos).'
+        : '⚠️ La suma de los movimientos no cuadra con el cuadro resumen del banco: revise el PDF.') + '</p></div>';
+
+    html += '<div class="kpis">' +
+      kpi('Entradas a la cuenta', m$(c.resumen.creditos), 'pos', 'salario, transferencias recibidas…') +
+      kpi('Salidas de la cuenta', m$(c.resumen.debitos), 'neg', 'pagos de tarjeta, transferencias, servicios…') +
+      kpi('Ya registrados en la app', m$(c.resumen.coincidenCreditos + c.resumen.coincidenDebitos), 'pos', c.coinciden.length + ' coinciden') +
+      kpi('Faltan en su presupuesto', m$(c.resumen.soloBancoCreditos + c.resumen.soloBancoDebitos), c.soloBanco.length ? 'neg' : 'pos',
+        c.soloBanco.length + ' movimientos sin correo') +
+      '</div>';
+
+    // Entradas y salidas por categoría
+    var nota = { 'transferencia': 'no suma al gasto', 'gasto': 'gasto', 'ingreso': 'ingreso' };
+    html += '<div class="tarjeta"><h2>Entradas y salidas por tipo</h2><div class="tabla-envoltura"><table class="tabla">' +
+      '<thead><tr><th>Categoría</th><th>Cómo cuenta</th><th class="num">Mov.</th><th class="num">Entradas</th><th class="num">Salidas</th></tr></thead><tbody>' +
+      c.porCategoria.map(function (x) {
+        var como = P.esCategoriaAhorro(x.categoria) ? 'ahorro' : nota[x.tipo] || x.tipo;
+        return '<tr><td>' + P.iconoDe(x.categoria) + ' ' + esc(x.categoria) + '</td><td class="ayuda">' + esc(como) + '</td><td class="num">' +
+          x.cantidad + '</td><td class="num pos">' + (x.entrada ? m$(x.total) : '') + '</td><td class="num neg">' +
+          (x.entrada ? '' : m$(x.total)) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="ayuda">Los pagos de tarjeta no son gasto (el gasto son las compras de la tarjeta). Las transferencias ' +
+      'y SINPE Móvil enviados tampoco se suman al gasto; si alguno sí lo es (p. ej. una compra pagada por SINPE), ' +
+      'cámbiele la categoría en <b>Movimientos</b> y la app recordará ese destinatario.</p></div>';
+
+    if (c.duplicados.length) {
+      html += c.duplicados.map(function (d) {
+        return '<div class="alerta">⚠️ Posible cobro duplicado: ' + esc(d[0].concepto) + ' por ' + m$(d[0].monto) + ' el ' +
+          fechaCorta(d[0].fecha) + ' y el ' + fechaCorta(d[1].fecha) + '.</div>';
+      }).join('');
+    }
+
+    // Movimientos que faltan
+    if (c.soloBanco.length) {
+      html += '<div class="tarjeta"><h2>Movimientos de la cuenta que no están en su presupuesto</h2>' +
+        '<p class="ayuda">No llegaron por correo. Marque los que quiere agregar; puede cambiar la categoría después en Movimientos.</p>' +
+        '<div class="tabla-envoltura"><table class="tabla"><thead><tr>' +
+        '<th><input type="checkbox" id="eb-todos" checked aria-label="Seleccionar todos"></th><th>Fecha</th><th>Descripción</th>' +
+        '<th>Categoría</th><th class="num">Monto</th></tr></thead><tbody>' +
+        c.soloBanco.map(function (x) {
+          var l = x.linea, s = x.sugerencia;
+          return '<tr><td><input type="checkbox" class="eb-sel" value="' + esc(l.id) + '" checked></td><td>' + fechaCorta(l.fecha) +
+            '</td><td class="desc">' + esc(s.descripcion) + '<small>' + esc(l.concepto) + ' · ref. ' + esc(l.referencia) + '</small></td><td>' +
+            P.iconoDe(s.categoria) + ' ' + esc(s.categoria) + (s.tipo === 'transferencia' ? '<small class="ayuda"> · no suma al gasto</small>' : '') +
+            '</td><td class="num ' + (l.esCredito ? 'pos' : 'neg') + '">' + (l.esCredito ? '+ ' : '− ') + m$(l.monto) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+
+    if (c.coinciden.length) {
+      html += '<div class="tarjeta"><h2>Ya registrados en la app</h2><div class="tabla-envoltura"><table class="tabla">' +
+        '<thead><tr><th>Fecha</th><th>En el estado</th><th>En la app</th><th class="num">Monto</th></tr></thead><tbody>' +
+        c.coinciden.map(function (x) {
+          var mv = x.movimiento, s = x.sugerencia;
+          var cambia = !mv.editado && mv.tipo === 'transferencia' && mv.categoria === P.CATEGORIA_TRANSFERENCIA &&
+            (s.tipo !== mv.tipo || s.categoria !== mv.categoria);
+          return '<tr><td>' + fechaCorta(x.linea.fecha) + '</td><td class="desc">' + esc(s.descripcion) + '</td><td class="desc">✅ ' +
+            esc(mv.descripcion) + '<small>' + P.iconoDe(mv.categoria) + ' ' + esc(mv.categoria) +
+            (cambia ? ' → ' + esc(s.categoria) + ' al aplicar' : '') + '</small></td><td class="num ' + (x.linea.esCredito ? 'pos' : 'neg') + '">' +
+            (x.linea.esCredito ? '+ ' : '− ') + m$(x.linea.monto) + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>';
+    }
+
+    if (c.soloApp.length) {
+      html += '<div class="tarjeta"><h2>En la app, pero no en esta cuenta</h2><div class="tabla-envoltura"><table class="tabla">' +
+        '<thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Monto</th></tr></thead><tbody>' +
+        c.soloApp.map(function (m) {
+          return '<tr><td>' + fechaCorta(m.fecha) + '</td><td class="desc">' + esc(m.descripcion) + '</td><td class="num">' + montoOriginal(m) + '</td></tr>';
+        }).join('') + '</tbody></table></div><p class="ayuda">🔎 Pueden ser de otra cuenta (p. ej. la de dólares) o de otro mes.</p></div>';
+    }
+
+    html += '<div class="tarjeta"><button id="eb-aplicar" class="primario">Aplicar conciliación</button>' +
+      '<p class="ayuda">Agrega los movimientos marcados y vincula los que ya estaban. Una transferencia de correo que el banco ' +
+      'identifica como pago de tarjeta o traslado a ahorros toma esa categoría.</p>' +
+      '<button id="eb-borrar" class="peligro">Quitar este estado de cuenta</button></div>';
+
+    cont.innerHTML = html;
+    cont._conciliacion = { eb: eb, c: c };
+  }
+
+  $('#eb-resultado').addEventListener('change', function (e) {
+    if (e.target.id === 'eb-todos') {
+      document.querySelectorAll('.eb-sel').forEach(function (x) { x.checked = e.target.checked; });
+    } else if (e.target.id === 'eb-selector') {
+      ebActual = e.target.value; renderEstadoBancario();
+    }
+  });
+  $('#eb-resultado').addEventListener('click', function (e) {
+    var datos = $('#eb-resultado')._conciliacion;
+    if (!datos) return;
+    if (e.target.id === 'eb-aplicar') {
+      var ids = Array.prototype.map.call(document.querySelectorAll('.eb-sel:checked'), function (x) { return x.value; });
+      var r = P.aplicarConciliacionBanco(datos.eb, datos.c, estado.movimientos, ids);
+      estado.movimientos = r.movimientos.sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; });
+      guardar(); render();
+      aviso('Listo: ' + r.agregados + ' movimientos agregados, ' + r.vinculados + ' vinculados' +
+        (r.reclasificados ? ', ' + r.reclasificados + ' reclasificados' : '') + '.');
+    } else if (e.target.id === 'eb-borrar' && confirm('¿Quitar este estado de cuenta? Los movimientos ya agregados se mantienen.')) {
+      estado.estadosBancarios = estado.estadosBancarios.filter(function (x) { return x !== datos.eb; });
+      ebActual = '';
       guardar(); render();
     }
   });
