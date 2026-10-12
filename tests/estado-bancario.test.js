@@ -53,20 +53,25 @@ test('clasifica cada línea', () => {
   assert.deepEqual(c('000000004'), { tipo: 'transferencia', categoria: 'Pago de tarjeta', descripcion: 'Pago tarjeta ****1111', comercio: 'Pago tarjeta ****1111' });
   assert.deepEqual([c('666000005').tipo, c('666000005').categoria], ['gasto', 'Ahorro e inversión']);
   assert.deepEqual([c('951000006').tipo, c('951000006').categoria], ['gasto', 'Servicios del hogar']);
-  assert.deepEqual([c('406000001').tipo, c('406000001').descripcion], ['transferencia', 'Transferencia enviada a la cuenta 900000001']);
-  assert.deepEqual([c('966000002').tipo, c('966000002').descripcion], ['transferencia', 'SINPE Móvil enviado: Huevos Ana']);
+  // SINPE y transferencias enviadas son gasto
+  assert.deepEqual([c('406000001').tipo, c('406000001').categoria, c('406000001').descripcion],
+    ['gasto', 'SINPE y transferencias', 'Transferencia enviada a la cuenta 900000001']);
+  assert.deepEqual([c('966000002').tipo, c('966000002').categoria, c('966000002').descripcion],
+    ['gasto', 'SINPE y transferencias', 'SINPE Móvil enviado: Huevos Ana']);
   assert.deepEqual([c('960000003').tipo, c('960000003').categoria], ['ingreso', 'Transferencias recibidas']);
   assert.deepEqual([c('406000008').categoria, c('406000008').descripcion], ['Transferencias recibidas', 'Transferencia recibida: FAMILIAR DE PRUEBA']);
   assert.deepEqual([c('093000010').categoria, c('093000010').descripcion], ['Otros ingresos', 'Intereses de la cuenta']);
   // Reglas del usuario: salario por remitente y un SINPE Móvil frecuente que en realidad es gasto
-  const reglas = { 'EMPRESA PATRONAL S': 'Salario', 'HUEVOS ANA': 'Supermercado' };
+  const reglas = { 'EMPRESA PATRONAL S': 'Salario', 'HUEVOS ANA': 'Supermercado', 'SIN DESCRIPCION': 'Entre cuentas propias' };
   assert.equal(c('960000003', reglas).categoria, 'Salario');
   assert.deepEqual([c('966000002', reglas).tipo, c('966000002', reglas).categoria], ['gasto', 'Supermercado']);
+  // Excepción: una regla hacia "no es gasto" deja el SINPE fuera del gasto
+  assert.deepEqual([c('966000009', reglas).tipo, c('966000009', reglas).categoria], ['transferencia', 'Entre cuentas propias']);
 });
 
 const movimientos = [
   { id: 'correo-salario', fecha: '2026-10-10T08:00', tipo: 'ingreso', descripcion: 'SINPE recibido: EMPRESA', comercio: 'EMPRESA', monto: 900000, moneda: 'CRC', categoria: 'Salario' },
-  { id: 'correo-ahorro', fecha: '2026-10-11T12:02', tipo: 'transferencia', descripcion: 'SINPE enviado', comercio: 'SINPE enviado', monto: 1000000, moneda: 'CRC', categoria: 'Transferencias' },
+  { id: 'correo-ahorro', fecha: '2026-10-11T12:02', tipo: 'gasto', descripcion: 'SINPE enviado', comercio: 'SINPE enviado', monto: 1000000, moneda: 'CRC', categoria: 'SINPE y transferencias', fuente: 'BAC SINPE' },
   // Compra con tarjeta de crédito por el mismo monto que un SINPE: no sale de la cuenta, no debe emparejarse
   { id: 'tarjeta-1', fecha: '2026-10-03T10:00', tipo: 'gasto', descripcion: 'Compra', comercio: 'FERIA', monto: 3500, moneda: 'CRC', tarjeta: 'VISA ****1111', categoria: 'Supermercado' },
   // SINPE recibido por correo en otra cuenta
@@ -100,7 +105,7 @@ test('aplicar la conciliación agrega, vincula y reclasifica; reaplicar no dupli
   assert.equal(r.agregados, 8);
   assert.equal(r.vinculados, 2);
   assert.equal(r.reclasificados, 1);
-  assert.equal(movimientos[1].tipo, 'transferencia', 'no modifica el original');
+  assert.equal(movimientos[1].categoria, 'SINPE y transferencias', 'no modifica el original');
 
   const ahorro = r.movimientos.find((m) => m.id === 'correo-ahorro');
   assert.deepEqual([ahorro.tipo, ahorro.categoria, ahorro.refBanco], ['gasto', 'Ahorro e inversión', 'eb-1234-666000005-2026-10-11-1000000.00d']);
@@ -115,13 +120,13 @@ test('aplicar la conciliación agrega, vincula y reclasifica; reaplicar no dupli
   assert.equal(r2.vinculados, 0);
   assert.equal(r2.movimientos.length, r.movimientos.length);
 
-  // Resumen del mes calendario: pagos de tarjeta y transferencias aparte del gasto
+  // Resumen del mes calendario: SINPE y transferencias enviadas en el gasto; el pago de tarjeta, aparte
   const res = R.resumenMes(r.movimientos, '2026-10', { tipoCambio: 500 });
   assert.equal(res.ingresos, 900000 + 110000 + 250.5 + 5000);
-  assert.equal(res.gastos, 3500 + 24000);
+  assert.equal(res.gastos, 3500 + 24000 + 150000 + 3500 + 98000);
+  assert.equal(res.enviadosGasto, 150000 + 3500 + 98000);
   assert.equal(res.ahorro, 1000000);
-  assert.equal(res.transferencias, 150000 + 3500 + 250000 + 98000);
-  assert.deepEqual(res.porTransferencia.map((t) => [t.categoria, t.total]),
-    [['Transferencias', 251500], ['Pago de tarjeta', 250000]]);
+  assert.equal(res.transferencias, 250000);
+  assert.deepEqual(res.porTransferencia.map((t) => [t.categoria, t.total]), [['Pago de tarjeta', 250000]]);
   assert.ok(res.porIngreso.some((i) => i.categoria === 'Transferencias recibidas' && i.total === 110000));
 });

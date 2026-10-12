@@ -155,7 +155,7 @@
     return {
       id: meta.id || '',
       fecha: (mFecha && parsearFechaDMY(mFecha[1], mFecha[2])) || meta.fechaCorreo || '',
-      tipo: 'transferencia',
+      tipo: 'gasto',              // salvo que el usuario lo marque como transferencia (no es gasto)
       descripcion: 'SINPE enviado',
       comercio: 'SINPE enviado',
       monto: parsearMonto(mMonto[1]),

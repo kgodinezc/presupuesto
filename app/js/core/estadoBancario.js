@@ -24,6 +24,7 @@
   var CAT_PAGO_TARJETA = 'Pago de tarjeta';
   var CAT_CUENTAS_PROPIAS = 'Entre cuentas propias';
   var CAT_RECIBIDAS = 'Transferencias recibidas';
+  var CAT_SINPE = 'SINPE y transferencias';
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
   function redondear(n) { return Math.round(n * 100) / 100; }
@@ -203,14 +204,14 @@
         r.tipo = 'transferencia'; r.categoria = CAT_CUENTAS_PROPIAS; r.descripcion = 'Traslado: ' + m[1];
       }
     } else if ((m = c.match(/^TEF A\s*:\s*(.*)$/i))) {
-      r.tipo = 'transferencia'; r.categoria = Cat.CATEGORIA_TRANSFERENCIA;
       r.comercio = 'Cuenta ' + m[1]; r.descripcion = 'Transferencia enviada a la cuenta ' + m[1];
+      return gastoEnviado(r, reglasUsuario);
     } else if ((m = c.match(/^SINPE MOVIL\s+(.*)$/i))) {
-      r.tipo = 'transferencia'; r.categoria = Cat.CATEGORIA_TRANSFERENCIA;
       r.comercio = m[1]; r.descripcion = 'SINPE Móvil enviado: ' + m[1];
+      return gastoEnviado(r, reglasUsuario);
     } else if ((m = c.match(/^SINPE\s+(.*)$/i))) {
-      r.tipo = 'transferencia'; r.categoria = Cat.CATEGORIA_TRANSFERENCIA;
       r.comercio = m[1]; r.descripcion = 'SINPE enviado: ' + m[1];
+      return gastoEnviado(r, reglasUsuario);
     } else {
       // Pagos de servicios, comisiones, compras con tarjeta de débito…
       r.tipo = 'gasto';
@@ -225,6 +226,17 @@
       r.categoria = regla;
       r.tipo = esCategoriaTransferencia(regla) ? 'transferencia' : 'gasto';
     }
+    return r;
+  }
+
+  /**
+   * SINPE y transferencias enviadas son gasto: la categoría sale de las reglas (del usuario o por palabras
+   * como "pizza") y, si no hay, es "SINPE y transferencias". Una regla del usuario con una categoría de
+   * transferencia (p. ej. "Entre cuentas propias") la deja fuera del gasto.
+   */
+  function gastoEnviado(r, reglasUsuario) {
+    r.categoria = Cat.categorizar({ tipo: 'gasto', comercio: r.comercio, descripcion: r.descripcion }, reglasUsuario);
+    r.tipo = Cat.tipoSegunCategoria('gasto', r.categoria);
     return r;
   }
 
@@ -377,8 +389,10 @@
       if (!m) return;
       if (m.refBanco !== x.linea.id && m.id !== x.linea.id) { m.refBanco = x.linea.id; vinculados++; }
       var s = x.sugerencia;
-      if (!m.editado && m.tipo === 'transferencia' && m.categoria === Cat.CATEGORIA_TRANSFERENCIA &&
-          (s.tipo !== m.tipo || s.categoria !== m.categoria)) {
+      // Un SINPE de correo sin categoría precisa toma la del banco (p. ej. traslado a ahorros o pago de tarjeta)
+      var generica = m.categoria === CAT_SINPE || m.categoria === Cat.CATEGORIA_TRANSFERENCIA_ANTERIOR;
+      if (!m.editado && (m.tipo === 'transferencia' || m.tipo === 'gasto') && generica && !m.tarjeta &&
+          s.categoria !== CAT_SINPE && (s.tipo !== m.tipo || s.categoria !== m.categoria)) {
         m.tipo = s.tipo;
         m.categoria = s.categoria;
         m.editado = true;

@@ -159,7 +159,7 @@
     return {
       id: meta.id || '',
       fecha: (mFecha && parsearFechaDMY(mFecha[1], mFecha[2])) || meta.fechaCorreo || '',
-      tipo: 'transferencia',
+      tipo: 'gasto',              // salvo que el usuario lo marque como transferencia (no es gasto)
       descripcion: 'SINPE enviado',
       comercio: 'SINPE enviado',
       monto: parsearMonto(mMonto[1]),
@@ -267,13 +267,18 @@
     { nombre: 'Paseos y entretenimiento', icono: '🎡', presupuesto: 60000 },
     { nombre: 'Diezmos y ofrendas', icono: '⛪', presupuesto: 0 },
     { nombre: 'Ahorro e inversión', icono: '💰', presupuesto: 0, esAhorro: true },
+    // SINPE y transferencias enviadas que no tienen una categoría más precisa
+    { nombre: 'SINPE y transferencias', icono: '📲', presupuesto: 0 },
     { nombre: 'Otros', icono: '❓', presupuesto: 40000 }
   ];
 
   var CATEGORIAS_INGRESO = ['Salario', 'Transferencias recibidas', 'Otros ingresos'];
-  var CATEGORIA_TRANSFERENCIA = 'Transferencias';
-  // Salidas de dinero que no son gasto: el gasto ya está en las compras o queda en la familia
-  var CATEGORIAS_TRANSFERENCIA = [CATEGORIA_TRANSFERENCIA, 'Pago de tarjeta', 'Entre cuentas propias'];
+  // Salidas de dinero que NO son gasto (el usuario las elige como excepción): el gasto ya está en las
+  // compras de la tarjeta o el dinero sigue siendo de la familia. Todo lo demás que sale es gasto.
+  var CATEGORIA_TRANSFERENCIA = 'Transferencia (no es gasto)';
+  var CATEGORIAS_TRANSFERENCIA = ['Pago de tarjeta', 'Entre cuentas propias', CATEGORIA_TRANSFERENCIA];
+  // Nombre anterior: los SINPE enviados se registraban como "Transferencias" y no sumaban al gasto
+  var CATEGORIA_TRANSFERENCIA_ANTERIOR = 'Transferencias';
 
   // [patrón (regex sobre el comercio normalizado), categoría]
   var REGLAS_PREDETERMINADAS = [
@@ -291,7 +296,9 @@
     ['EL REY|PEQUENO MUNDO|\\bEPA\\b|CONSTRUPLAZA|FERRETERIA|\\bMONGE\\b|\\bGOLLO\\b|\\bEXTRA\\b|IKEA|CEMACO|WALMART HOGAR|CHINA DEPOT', 'Hogar'],
     ['LIBRERIA|UNIVERSIDAD|COLEGIO|ESCUELA|UDEMY|COURSERA|UNIVERSAL|PLATZI', 'Educación y libros'],
     ['CROSSFIT|\\bGYM\\b|SMART ?FIT|DEPORT|DECATHLON|SPORT|FITNESS', 'Deporte'],
-    ['HOTEL|KAYAK|EVENTOS|\\bCINE|\\bCCM\\b|\\bTOUR|PARQUE|MUSEO|AIRBNB|BOOKING|TICKET|TEATRO', 'Paseos y entretenimiento']
+    ['HOTEL|KAYAK|EVENTOS|\\bCINE|\\bCCM\\b|\\bTOUR|PARQUE|MUSEO|AIRBNB|BOOKING|TICKET|TEATRO', 'Paseos y entretenimiento'],
+    // Al final: un SINPE o transferencia enviada sin otra pista es gasto en esta categoría
+    ['\\bSINPE\\b|TRANSFERENCIA', 'SINPE y transferencias']
   ];
 
   var REGLAS_INGRESO = [
@@ -324,16 +331,42 @@
    * @param {Object<string,string>=} reglasUsuario { claveComercio: categoria }
    */
   function categorizar(mov, reglasUsuario) {
+    var clave = claveComercio(mov.comercio || mov.descripcion);
+    if (reglasUsuario && reglasUsuario[clave]) return reglasUsuario[clave];
     if (mov.tipo === 'transferencia') {
       return CATEGORIAS_TRANSFERENCIA.indexOf(mov.categoria) >= 0 ? mov.categoria : CATEGORIA_TRANSFERENCIA;
     }
-    var clave = claveComercio(mov.comercio || mov.descripcion);
-    if (reglasUsuario && reglasUsuario[clave]) return reglasUsuario[clave];
     var texto = normalizarTexto((mov.comercio || '') + ' ' + (mov.descripcion || ''));
     if (mov.tipo === 'ingreso') {
       return primeraCoincidencia(REGLAS_INGRESO, texto) || 'Otros ingresos';
     }
     return primeraCoincidencia(REGLAS_PREDETERMINADAS, texto) || 'Otros';
+  }
+
+  /** Gastos y transferencias enviadas: es transferencia (no suma al gasto) solo con una categoría de transferencia. */
+  function tipoSegunCategoria(tipo, categoria) {
+    if (tipo !== 'gasto' && tipo !== 'transferencia') return tipo;
+    return CATEGORIAS_TRANSFERENCIA.indexOf(categoria) >= 0 ? 'transferencia' : 'gasto';
+  }
+
+  /**
+   * Ajusta tipo y categoría de un movimiento a la regla "todo lo que sale es gasto, salvo las excepciones":
+   * los SINPE enviados que antes quedaban como "Transferencias" pasan a gasto (con su categoría), salvo que
+   * el usuario los haya marcado a mano. Modifica el movimiento y devuelve true si cambió.
+   */
+  function normalizarTipo(mov, reglasUsuario) {
+    if (mov.tipo !== 'gasto' && mov.tipo !== 'transferencia') return false;
+    var antes = mov.tipo + '|' + mov.categoria;
+    if (mov.categoria === CATEGORIA_TRANSFERENCIA_ANTERIOR || (mov.tipo === 'transferencia' && !mov.categoria)) {
+      if (mov.editado) {
+        mov.categoria = CATEGORIA_TRANSFERENCIA;
+      } else {
+        mov.tipo = 'gasto';
+        mov.categoria = categorizar(mov, reglasUsuario);
+      }
+    }
+    mov.tipo = tipoSegunCategoria(mov.tipo, mov.categoria);
+    return antes !== mov.tipo + '|' + mov.categoria;
   }
 
   function presupuestosPredeterminados() {
@@ -347,7 +380,7 @@
       if (CATEGORIAS_GASTO[i].nombre === categoria) return CATEGORIAS_GASTO[i].icono;
     }
     if (categoria === 'Salario') return '💼';
-    if (categoria === CATEGORIA_TRANSFERENCIA) return '🔁';
+    if (categoria === CATEGORIA_TRANSFERENCIA || categoria === CATEGORIA_TRANSFERENCIA_ANTERIOR) return '🔁';
     if (categoria === 'Pago de tarjeta') return '💳';
     if (categoria === 'Entre cuentas propias') return '🏦';
     if (categoria === 'Transferencias recibidas') return '📥';
@@ -366,6 +399,9 @@
     CATEGORIAS_INGRESO: CATEGORIAS_INGRESO,
     CATEGORIA_TRANSFERENCIA: CATEGORIA_TRANSFERENCIA,
     CATEGORIAS_TRANSFERENCIA: CATEGORIAS_TRANSFERENCIA,
+    CATEGORIA_TRANSFERENCIA_ANTERIOR: CATEGORIA_TRANSFERENCIA_ANTERIOR,
+    tipoSegunCategoria: tipoSegunCategoria,
+    normalizarTipo: normalizarTipo,
     REGLAS_PREDETERMINADAS: REGLAS_PREDETERMINADAS,
     categorizar: categorizar,
     claveComercio: claveComercio,
@@ -392,9 +428,9 @@
  * Convenciones:
  *  - Todos los totales se expresan en colones (CRC); los montos en USD se
  *    convierten con el tipo de cambio configurado.
- *  - "transferencia" (p. ej. SINPE enviado) NO se suma como gasto: con
- *    frecuencia es el pago de la tarjeta o un traslado entre cuentas propias y
- *    contarlo duplicaría las compras. Se reporta aparte para revisarlo.
+ *  - Los SINPE y transferencias enviados son gasto. Solo "transferencia" (pago de
+ *    tarjeta, entre cuentas propias u otra que el usuario marque como "no es
+ *    gasto") queda fuera del gasto: contarla duplicaría las compras de la tarjeta.
  *  - La categoría "Ahorro e inversión" se reporta aparte del gasto de consumo.
  */
 (function (root) {
@@ -495,6 +531,11 @@
    * @param {string} mes clave del periodo 'YYYY-MM'
    * @param {{tipoCambio:number, presupuestos:Object, diaCorte:number}} opciones
    */
+  /** SINPE o transferencia enviada (de un correo o del estado bancario), no una compra con tarjeta. */
+  function esEnvio(m) {
+    return !m.tarjeta && (m.fuente === 'BAC SINPE' || /^(SINPE|Transferencia enviada)/i.test(m.descripcion || ''));
+  }
+
   function resumenMes(movs, mes, opciones) {
     opciones = opciones || {};
     var tc = opciones.tipoCambio || 1;
@@ -502,7 +543,7 @@
     var diaCorte = opciones.diaCorte || 0;
     var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
-    var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
+    var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0, enviadosGasto = 0;
     var porCat = {}, porIngreso = {}, porTransf = {};
 
     delMes.forEach(function (m) {
@@ -516,6 +557,7 @@
         porTransf[cat] = (porTransf[cat] || 0) + crc;
       } else {
         var signo = m.tipo === 'reembolso' ? -1 : 1;
+        if (m.tipo === 'gasto' && esEnvio(m) && !Cat.esCategoriaAhorro(cat)) enviadosGasto += crc;
         if (Cat.esCategoriaAhorro(cat)) {
           ahorro += signo * crc;
         } else {
@@ -554,6 +596,7 @@
       gastos: redondear(gastos),
       ahorro: redondear(ahorro),
       transferencias: redondear(transferencias),
+      enviadosGasto: redondear(enviadosGasto),
       balance: redondear(balance),
       tasaAhorro: ingresos > 0 ? (ingresos - gastos) / ingresos : null,
       presupuestoTotal: Object.keys(presupuestos).reduce(function (s, k) {
@@ -627,6 +670,7 @@
     etiquetaPeriodo: etiquetaPeriodo,
     nombreMesCorte: nombreMesCorte,
     resumenMes: resumenMes,
+    esEnvio: esEnvio,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual
   };
@@ -1173,6 +1217,7 @@ function importarCorreos(dias) {
         });
         if (!mov) return;
         mov.categoria = Presupuesto.categorizar(mov, reglas);
+        mov.tipo = Presupuesto.tipoSegunCategoria(mov.tipo, mov.categoria);
         existentes[id] = true;
         nuevos.push(mov);
       });
@@ -1196,17 +1241,50 @@ function importarCorreos(dias) {
   return nuevos.length;
 }
 
-/** Vuelve a categorizar todos los movimientos según la hoja Reglas. */
+/**
+ * Vuelve a categorizar todos los movimientos según la hoja Reglas. Respeta las excepciones marcadas a mano
+ * con una categoría de "no es gasto" (Pago de tarjeta, Entre cuentas propias, Transferencia (no es gasto)).
+ */
 function recategorizarTodo() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
   var reglas = leerReglas_(ss);
   var movs = leerMovimientos_(hoja);
   if (!movs.length) return;
-  var colCat = COLUMNAS.indexOf('categoria') + 1;
-  hoja.getRange(2, colCat, movs.length, 1)
-    .setValues(movs.map(function (m) { return [Presupuesto.categorizar(m, reglas)]; }));
+  movs.forEach(function (m) {
+    if (m.tipo === 'transferencia' && Presupuesto.CATEGORIAS_TRANSFERENCIA.indexOf(m.categoria) >= 0) return;
+    if (m.tipo === 'transferencia') m.tipo = 'gasto';
+    m.categoria = Presupuesto.categorizar(m, reglas);
+    Presupuesto.normalizarTipo(m, reglas);
+  });
+  escribirTipoYCategoria_(hoja, movs);
   actualizarResumen();
+}
+
+/**
+ * Todo SINPE o transferencia enviada es gasto, salvo que su categoría sea de "no es gasto". Pasa a gasto los
+ * SINPE que versiones anteriores guardaban como "Transferencias", y ajusta el tipo si se cambió la categoría
+ * a mano en la hoja (p. ej. a "Entre cuentas propias").
+ */
+function normalizarTipos_(ss) {
+  var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
+  var movs = leerMovimientos_(hoja);
+  var reglas = leerReglas_(ss);
+  var cambios = 0;
+  movs.forEach(function (m) { if (Presupuesto.normalizarTipo(m, reglas)) cambios++; });
+  if (cambios) escribirTipoYCategoria_(hoja, movs);
+  return cambios;
+}
+
+/** Escribe tipo y categoria (columnas contiguas) en la fila de cada movimiento. */
+function escribirTipoYCategoria_(hoja, movs) {
+  var colTipo = COLUMNAS.indexOf('tipo') + 1;
+  var n = hoja.getLastRow() - 1;
+  if (n < 1) return;
+  var rango = hoja.getRange(2, colTipo, n, 2);
+  var valores = rango.getValues();
+  movs.forEach(function (m) { valores[m._fila - 2] = [m.tipo, m.categoria]; });
+  rango.setValues(valores);
 }
 
 // ---------------------------------------------------------------- Resumen
@@ -1218,6 +1296,8 @@ function recategorizarTodo() {
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarAjuste_(ss, '_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO);
+  asegurarAjuste_(ss, 'SINPE y transferencias', 0);
+  normalizarTipos_(ss);
   actualizarColumnasMes_(ss);
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
   var diaCorte = 0; // mes calendario
@@ -1225,7 +1305,7 @@ function actualizarResumen() {
   var hoja = obtenerHoja_(ss, CONFIG.HOJA_RESUMEN);
   hoja.clear();
 
-  var filas = [['Mes calendario', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
+  var filas = [['Mes calendario', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'No es gasto (pagos de tarjeta…)', 'Balance', '% ahorro']];
   Presupuesto.mesesDisponibles(movs, diaCorte).forEach(function (mes) {
     var r = Presupuesto.resumenMes(movs, mes, opciones);
     filas.push([Presupuesto.etiquetaPeriodo(mes, diaCorte), r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
@@ -1276,7 +1356,10 @@ function doGet(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     salida = {
       generado: new Date().toISOString(),
-      movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)),
+      movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)).map(function (m) {
+        delete m._fila;
+        return m;
+      }),
       presupuestos: leerPresupuestos_(ss),
       tipoCambio: leerTipoCambio_(ss),
       diaCorte: leerDiaCorte_(ss)
@@ -1358,8 +1441,9 @@ function filaDe_(m, tc, diaCorte) {
 function leerMovimientos_(hoja) {
   if (!hoja || hoja.getLastRow() < 2) return [];
   var datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, COLUMNAS.length).getValues();
-  return datos.filter(function (f) { return f[0]; }).map(function (f) {
-    var m = {};
+  return datos.map(function (f, i) { return { f: f, fila: i + 2 }; }).filter(function (x) { return x.f[0]; }).map(function (x) {
+    var f = x.f;
+    var m = { _fila: x.fila };
     COLUMNAS.forEach(function (c, i) { m[c] = f[i]; });
     if (m.fecha instanceof Date) {
       m.fecha = Utilities.formatDate(m.fecha, 'America/Costa_Rica', "yyyy-MM-dd'T'HH:mm");
