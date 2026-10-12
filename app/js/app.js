@@ -8,6 +8,7 @@
   // ------------------------------------------------------------ Estado
 
   var estado = cargar();
+  normalizarTipos();
 
   function estadoInicial() {
     return {
@@ -139,31 +140,43 @@
     });
     estado.movimientos = Object.keys(porId).map(function (k) { return porId[k]; })
       .sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; });
+    normalizarTipos();
     return nuevos;
+  }
+
+  /**
+   * Todo SINPE o transferencia enviada es gasto, salvo que tenga una categoría de "no es gasto"
+   * (pago de tarjeta, entre cuentas propias…). Pasa a gasto los SINPE que antes eran "Transferencias".
+   */
+  function normalizarTipos() {
+    var n = 0;
+    estado.movimientos.forEach(function (m) { if (P.normalizarTipo(m, estado.reglas)) n++; });
+    return n;
   }
 
   /** Elegir una categoría de transferencia convierte un gasto en transferencia y viceversa. */
   function tipoParaCategoria(mov, categoria) {
-    if (mov.tipo !== 'gasto' && mov.tipo !== 'transferencia') return mov.tipo;
-    return P.CATEGORIAS_TRANSFERENCIA.indexOf(categoria) >= 0 ? 'transferencia' : 'gasto';
+    return P.tipoSegunCategoria(mov.tipo, categoria);
   }
 
   function cambiarCategoria(id, categoria, recordar) {
     var mov = estado.movimientos.find(function (m) { return m.id === id; });
     if (!mov) return;
     var tipoNuevo = tipoParaCategoria(mov, categoria);
-    var cambioTipo = tipoNuevo !== mov.tipo;
     mov.categoria = categoria;
     mov.tipo = tipoNuevo;
     mov.editado = true;
-    // Se recuerda el comercio; las transferencias genéricas (p. ej. "Cuenta 123") solo si pasan a gasto
-    if (recordar && mov.comercio && (mov.tipo !== 'transferencia' || cambioTipo)) {
-      var clave = P.claveComercio(mov.comercio);
+    // No se aprenden nombres genéricos ("SINPE enviado" de los correos, "Sin descripción", "Cuenta 123…"):
+    // la regla cambiaría todos los SINPE, no solo los de ese destinatario.
+    var clave = P.claveComercio(mov.comercio);
+    var generico = !clave || /^(SINPE ENVIADO|SIN DESCRIPCION|CUENTA)$/.test(clave);
+    if (recordar && !generico) {
       estado.reglas[clave] = categoria;
       var otros = 0;
       estado.movimientos.forEach(function (m) {
         if (m === mov || P.claveComercio(m.comercio) !== clave) return;
-        if (m.tipo === mov.tipo || (cambioTipo && !m.tarjeta && (m.tipo === 'gasto' || m.tipo === 'transferencia'))) {
+        var salida = function (x) { return x.tipo === 'gasto' || x.tipo === 'transferencia'; };
+        if (m.tipo === mov.tipo || (!mov.tarjeta && !m.tarjeta && salida(m) && salida(mov))) {
           m.categoria = categoria; m.tipo = mov.tipo; m.editado = true; otros++;
         }
       });
@@ -198,7 +211,7 @@
       { e: 'Tasa de ahorro', v: pct(r.tasaAhorro), c: (r.tasaAhorro || 0) >= 0.1 ? 'pos' : 'neg', s: 'Meta sugerida: 10–20%' }
     ];
     if (r.ahorro) kpis.push({ e: 'Ahorro e inversión', v: crc(r.ahorro), c: '', s: 'Separado del gasto' });
-    if (r.transferencias) kpis.push({ e: 'Transferencias enviadas', v: crc(r.transferencias), c: '', s: 'No se suman al gasto: revíselas' });
+    if (r.transferencias) kpis.push({ e: 'No es gasto', v: crc(r.transferencias), c: '', s: 'Pagos de tarjeta, entre cuentas propias…' });
     $('#kpis').innerHTML = kpis.map(function (k) {
       return '<div class="kpi"><div class="etiqueta">' + k.e + '</div><div class="valor ' + k.c + '">' +
         k.v + '</div><div class="sub">' + esc(k.s) + '</div></div>';
@@ -235,16 +248,21 @@
   function renderCuentas(r) {
     var html = '';
     var recibidas = r.porIngreso.filter(function (i) { return i.categoria === 'Transferencias recibidas'; })[0];
-    if (r.porTransferencia.length || recibidas) {
+    if (r.porTransferencia.length || recibidas || r.enviadosGasto) {
       html += '<h2>Transferencias del mes</h2>';
       if (recibidas) {
         html += '<div class="cat"><span class="nombre">📥 Recibidas</span><span class="monto pos">' + crc(recibidas.total) + '</span></div>';
       }
+      if (r.enviadosGasto) {
+        html += '<div class="cat"><span class="nombre">📲 SINPE y transferencias enviadas</span><span class="monto neg">' +
+          crc(r.enviadosGasto) + '</span><span class="detalle">Incluidas en el gasto, en su categoría</span></div>';
+      }
       html += r.porTransferencia.map(function (t) {
-        return '<div class="cat"><span class="nombre">' + P.iconoDe(t.categoria) + ' ' + esc(t.categoria === P.CATEGORIA_TRANSFERENCIA ? 'Enviadas' : t.categoria) +
-          '</span><span class="monto">' + crc(t.total) + '</span></div>';
+        return '<div class="cat"><span class="nombre">' + P.iconoDe(t.categoria) + ' ' + esc(t.categoria) +
+          '</span><span class="monto">' + crc(t.total) + '</span><span class="detalle">No es gasto</span></div>';
       }).join('');
-      html += '<p class="ayuda">Las transferencias enviadas y los pagos de tarjeta no se suman al gasto.</p>';
+      html += '<p class="ayuda">Los SINPE y transferencias enviados cuentan como gasto. Para excluir uno (p. ej. un traslado a ' +
+        'otra cuenta suya), en <b>Movimientos</b> elija una categoría del grupo "No es gasto".</p>';
     }
     var cuentas = estado.estadosBancarios.filter(function (eb) { return eb.clave === estado.mes; });
     if (cuentas.length) {
@@ -296,7 +314,7 @@
   /** Transferencias y gastos fuera de tarjeta pueden pasar de un tipo al otro. */
   function opcionesCategoria(m) {
     if (m.tipo === 'transferencia' || (m.tipo === 'gasto' && !m.tarjeta)) {
-      var transf = '<optgroup label="Transferencia (no suma al gasto)">' + opcionesDe(categoriasPara('transferencia'), m.categoria) + '</optgroup>';
+      var transf = '<optgroup label="No es gasto (excepción)">' + opcionesDe(categoriasPara('transferencia'), m.categoria) + '</optgroup>';
       var gasto = '<optgroup label="' + (m.tipo === 'gasto' ? 'Gasto' : 'Contar como gasto') + '">' +
         opcionesDe(categoriasPara('gasto'), m.categoria) + '</optgroup>';
       return m.tipo === 'gasto' ? gasto + transf : transf + gasto;
@@ -980,9 +998,9 @@
           x.cantidad + '</td><td class="num pos">' + (x.entrada ? m$(x.total) : '') + '</td><td class="num neg">' +
           (x.entrada ? '' : m$(x.total)) + '</td></tr>';
       }).join('') + '</tbody></table></div>' +
-      '<p class="ayuda">Los pagos de tarjeta no son gasto (el gasto son las compras de la tarjeta). Las transferencias ' +
-      'y SINPE Móvil enviados tampoco se suman al gasto; si alguno sí lo es (p. ej. una compra pagada por SINPE), ' +
-      'cámbiele la categoría en <b>Movimientos</b> y la app recordará ese destinatario.</p></div>';
+      '<p class="ayuda">Los SINPE y transferencias enviados son gasto (categoría "SINPE y transferencias" si no hay una más ' +
+      'precisa). Los pagos de tarjeta no lo son: el gasto son las compras de la tarjeta. En <b>Movimientos</b> puede darle ' +
+      'otra categoría a un SINPE o marcarlo como "No es gasto"; la app recordará ese destinatario.</p></div>';
 
     if (c.duplicados.length) {
       html += c.duplicados.map(function (d) {
@@ -1012,7 +1030,8 @@
         '<thead><tr><th>Fecha</th><th>En el estado</th><th>En la app</th><th class="num">Monto</th></tr></thead><tbody>' +
         c.coinciden.map(function (x) {
           var mv = x.movimiento, s = x.sugerencia;
-          var cambia = !mv.editado && mv.tipo === 'transferencia' && mv.categoria === P.CATEGORIA_TRANSFERENCIA &&
+          var cambia = !mv.editado && !mv.tarjeta && (mv.categoria === 'SINPE y transferencias' ||
+            mv.categoria === P.CATEGORIA_TRANSFERENCIA_ANTERIOR) && s.categoria !== 'SINPE y transferencias' &&
             (s.tipo !== mv.tipo || s.categoria !== mv.categoria);
           return '<tr><td>' + fechaCorta(x.linea.fecha) + '</td><td class="desc">' + esc(s.descripcion) + '</td><td class="desc">✅ ' +
             esc(mv.descripcion) + '<small>' + P.iconoDe(mv.categoria) + ' ' + esc(mv.categoria) +

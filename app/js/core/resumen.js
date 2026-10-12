@@ -6,9 +6,9 @@
  * Convenciones:
  *  - Todos los totales se expresan en colones (CRC); los montos en USD se
  *    convierten con el tipo de cambio configurado.
- *  - "transferencia" (p. ej. SINPE enviado) NO se suma como gasto: con
- *    frecuencia es el pago de la tarjeta o un traslado entre cuentas propias y
- *    contarlo duplicaría las compras. Se reporta aparte para revisarlo.
+ *  - Los SINPE y transferencias enviados son gasto. Solo "transferencia" (pago de
+ *    tarjeta, entre cuentas propias u otra que el usuario marque como "no es
+ *    gasto") queda fuera del gasto: contarla duplicaría las compras de la tarjeta.
  *  - La categoría "Ahorro e inversión" se reporta aparte del gasto de consumo.
  */
 (function (root) {
@@ -109,6 +109,11 @@
    * @param {string} mes clave del periodo 'YYYY-MM'
    * @param {{tipoCambio:number, presupuestos:Object, diaCorte:number}} opciones
    */
+  /** SINPE o transferencia enviada (de un correo o del estado bancario), no una compra con tarjeta. */
+  function esEnvio(m) {
+    return !m.tarjeta && (m.fuente === 'BAC SINPE' || /^(SINPE|Transferencia enviada)/i.test(m.descripcion || ''));
+  }
+
   function resumenMes(movs, mes, opciones) {
     opciones = opciones || {};
     var tc = opciones.tipoCambio || 1;
@@ -116,7 +121,7 @@
     var diaCorte = opciones.diaCorte || 0;
     var delMes = movs.filter(function (m) { return periodoMovimiento(m, diaCorte) === mes && !m.excluir; });
 
-    var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0;
+    var ingresos = 0, gastos = 0, ahorro = 0, transferencias = 0, enviadosGasto = 0;
     var porCat = {}, porIngreso = {}, porTransf = {};
 
     delMes.forEach(function (m) {
@@ -130,6 +135,7 @@
         porTransf[cat] = (porTransf[cat] || 0) + crc;
       } else {
         var signo = m.tipo === 'reembolso' ? -1 : 1;
+        if (m.tipo === 'gasto' && esEnvio(m) && !Cat.esCategoriaAhorro(cat)) enviadosGasto += crc;
         if (Cat.esCategoriaAhorro(cat)) {
           ahorro += signo * crc;
         } else {
@@ -168,6 +174,7 @@
       gastos: redondear(gastos),
       ahorro: redondear(ahorro),
       transferencias: redondear(transferencias),
+      enviadosGasto: redondear(enviadosGasto),
       balance: redondear(balance),
       tasaAhorro: ingresos > 0 ? (ingresos - gastos) / ingresos : null,
       presupuestoTotal: Object.keys(presupuestos).reduce(function (s, k) {
@@ -241,6 +248,7 @@
     etiquetaPeriodo: etiquetaPeriodo,
     nombreMesCorte: nombreMesCorte,
     resumenMes: resumenMes,
+    esEnvio: esEnvio,
     posiblesDuplicados: posiblesDuplicados,
     serieMensual: serieMensual
   };

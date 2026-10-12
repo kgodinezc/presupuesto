@@ -67,12 +67,37 @@ test('SINPE recibido en dólares', () => {
   assert.equal(m.fecha, '2026-08-07T15:49');
 });
 
-test('SINPE enviado es transferencia (no gasto)', () => {
+test('SINPE enviado es gasto, salvo que se marque como "no es gasto"', () => {
   const m = parsearCorreo({ cuerpo: fixture('sinpe_enviado.txt') });
-  assert.equal(m.tipo, 'transferencia');
+  assert.equal(m.tipo, 'gasto');
   assert.equal(m.monto, 250000);
   assert.equal(m.fecha, '2026-09-11T12:02');
-  assert.equal(categorizar(m), 'Transferencias');
+  assert.equal(categorizar(m), 'SINPE y transferencias');
+  assert.equal(categorizar({ tipo: 'gasto', comercio: 'Pizza Juan', descripcion: 'SINPE Móvil enviado: Pizza Juan' }), 'Restaurantes y comidas');
+  // Regla del usuario hacia una categoría de "no es gasto"
+  const P = require('../app/js/core/categorias.js');
+  const cat = categorizar({ tipo: 'gasto', comercio: 'Mi otra cuenta' }, { 'MI OTRA CUENTA': 'Entre cuentas propias' });
+  assert.equal(cat, 'Entre cuentas propias');
+  assert.equal(P.tipoSegunCategoria('gasto', cat), 'transferencia');
+  assert.equal(P.tipoSegunCategoria('transferencia', 'Supermercado'), 'gasto');
+  assert.equal(P.tipoSegunCategoria('ingreso', 'Pago de tarjeta'), 'ingreso');
+});
+
+test('normalizarTipo pasa a gasto los SINPE que antes eran "Transferencias"', () => {
+  const P = require('../app/js/core/categorias.js');
+  const viejo = { tipo: 'transferencia', categoria: 'Transferencias', comercio: 'SINPE enviado', descripcion: 'SINPE enviado' };
+  assert.equal(P.normalizarTipo(viejo), true);
+  assert.deepEqual([viejo.tipo, viejo.categoria], ['gasto', 'SINPE y transferencias']);
+  const marcado = { tipo: 'transferencia', categoria: 'Transferencias', comercio: 'X', editado: true };
+  P.normalizarTipo(marcado);
+  assert.deepEqual([marcado.tipo, marcado.categoria], ['transferencia', 'Transferencia (no es gasto)']);
+  const pago = { tipo: 'transferencia', categoria: 'Pago de tarjeta', comercio: 'Pago tarjeta ****1111' };
+  assert.equal(P.normalizarTipo(pago), false);
+  const hoja = { tipo: 'gasto', categoria: 'Entre cuentas propias', comercio: 'SINPE enviado' };
+  P.normalizarTipo(hoja);
+  assert.equal(hoja.tipo, 'transferencia');
+  const compra = { tipo: 'gasto', categoria: 'Supermercado', comercio: 'AUTO MERCADO', tarjeta: 'VISA ****1111' };
+  assert.equal(P.normalizarTipo(compra), false);
 });
 
 test('transferencia local recibida', () => {
@@ -123,7 +148,7 @@ test('resumen mensual: ingresos, gastos, ahorro, transferencias y USD', () => {
     { id: '2', fecha: '2026-09-12T10:00', tipo: 'gasto', monto: 100000, moneda: 'CRC', categoria: 'Supermercado', comercio: 'A' },
     { id: '3', fecha: '2026-09-13T10:00', tipo: 'gasto', monto: 100, moneda: 'USD', categoria: 'Compras en línea', comercio: 'B' },
     { id: '4', fecha: '2026-09-14T10:00', tipo: 'gasto', monto: 50000, moneda: 'CRC', categoria: 'Ahorro e inversión', comercio: 'C' },
-    { id: '5', fecha: '2026-09-15T10:00', tipo: 'transferencia', monto: 300000, moneda: 'CRC', categoria: 'Transferencias' },
+    { id: '5', fecha: '2026-09-15T10:00', tipo: 'transferencia', monto: 300000, moneda: 'CRC', categoria: 'Pago de tarjeta' },
     { id: '6', fecha: '2026-09-16T10:00', tipo: 'reembolso', monto: 10000, moneda: 'CRC', categoria: 'Supermercado', comercio: 'A' },
     { id: '7', fecha: '2026-08-30T10:00', tipo: 'gasto', monto: 999, moneda: 'CRC', categoria: 'Otros' }
   ];

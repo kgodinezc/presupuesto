@@ -125,3 +125,32 @@ test('la pestaña Resumen de la hoja agrupa por mes calendario aunque haya día 
     ['Noviembre 2026 (7 oct – 6 nov)', 'Octubre 2026'],
     ['Octubre 2026 (7 set – 6 oct)', 'Setiembre 2026']]);
 });
+
+test('la hoja pasa a gasto los SINPE enviados, salvo los marcados como "no es gasto"', () => {
+  const codigo = fs.readFileSync(path.join(__dirname, '../apps-script/dist/Codigo.gs'), 'utf8');
+  const ctx0 = vm.createContext({});
+  vm.runInContext(codigo, ctx0);
+  const cols = [...ctx0.COLUMNAS];
+  const fila = (id, tipo, categoria, monto) => cols.map((c) => ({ id, fecha: '2026-09-11T12:00', tipo, categoria, monto,
+    moneda: 'CRC', descripcion: 'SINPE enviado', comercio: 'SINPE enviado', fuente: 'BAC SINPE' }[c] ?? ''));
+  const movs = hojaFalsa([cols,
+    fila('viejo', 'transferencia', 'Transferencias', 5000),           // versión anterior: no sumaba al gasto
+    fila('propia', 'gasto', 'Entre cuentas propias', 7000),           // marcado a mano en la hoja
+    ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''], // fila vacía en medio
+    fila('nuevo', 'gasto', 'SINPE y transferencias', 3000)]);
+  const pres = hojaFalsa([['categoria', 'presupuestoMensualCRC'], ['Supermercado', 300000]]);
+  const resumen = hojaFalsa([]);
+  const hojas = { Movimientos: movs, Presupuesto: pres, Resumen: resumen };
+  const ss = { getSheetByName: (n) => hojas[n] || null, insertSheet: (n) => (hojas[n] = hojaFalsa([])) };
+  const ctx = vm.createContext({ SpreadsheetApp: { getActiveSpreadsheet: () => ss } });
+  vm.runInContext(codigo, ctx);
+  ctx.actualizarResumen();
+  const tipoCat = (id) => { const f = movs.datos.find((x) => x[0] === id); return [f[2], f[3]]; };
+  assert.deepEqual(tipoCat('viejo'), ['gasto', 'SINPE y transferencias']);
+  assert.deepEqual(tipoCat('propia'), ['transferencia', 'Entre cuentas propias']);
+  assert.deepEqual(tipoCat('nuevo'), ['gasto', 'SINPE y transferencias']);
+  assert.equal(movs.datos[3][0], '', 'la fila vacía no se toca');
+  const set = resumen.datos.find((f) => f[0] === 'Setiembre 2026');
+  assert.deepEqual([set[2], set[4]], [8000, 7000]);
+  assert.ok(pres.datos.some((f) => f[0] === 'SINPE y transferencias'), 'agrega la categoría al presupuesto');
+});

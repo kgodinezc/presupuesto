@@ -21,7 +21,7 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
 | *Notificación de transacción* (tarjeta de crédito/débito) | **Gasto** (CRC o USD) |
 | *Transferencia SINPE* recibida | **Ingreso** (p. ej. salario) |
 | *Transferencia Local* recibida | **Ingreso** |
-| *Transferencia SINPE en tiempo real* enviada | **Transferencia** (no se suma al gasto) |
+| *Transferencia SINPE en tiempo real* enviada | **Gasto** ("SINPE y transferencias", salvo excepción) |
 
 - **Categorización automática** por comercio (Supermercado, Restaurantes, Salud, Transporte,
   Suscripciones, Compras en línea, Ropa, Hogar, Educación, Deporte, Paseos, Servicios,
@@ -55,8 +55,8 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   **dólares** (mismo botón; la app reconoce si es de tarjeta o de cuenta). Cada línea se clasifica por la
   columna en que está (débito o crédito) y se verifica contra el cuadro resumen y el saldo del banco:
   - **entradas**: salario, transferencias recibidas (TEF, SINPE), intereses;
-  - **salidas**: pagos de tarjeta, traslados a ahorros, transferencias y SINPE Móvil enviados, pagos de
-    servicios (Liberty, ICE, AyA…);
+  - **salidas**: SINPE Móvil y transferencias enviadas (gasto), pagos de servicios (Liberty, ICE, AyA…),
+    traslados a ahorros (Ahorro e inversión) y pagos de tarjeta (no son gasto);
   - las que ya llegaron por correo se vinculan; las demás se agregan con un clic;
   - avisa de **posibles cobros duplicados** (mismo concepto y monto en 3 días o menos).
 
@@ -66,13 +66,16 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
 
 ### Decisiones de diseño importantes
 
-- **Las transferencias enviadas no se cuentan como gasto.** Con frecuencia son el pago de la tarjeta
-  o un traslado entre cuentas propias; como las compras con tarjeta ya se registraron una por una,
-  sumarlas duplicaría el gasto. Aparecen aparte para revisarlas; si una transferencia sí es un gasto
-  (p. ej. alquiler), agréguelo como movimiento manual.
-- **Pagos de tarjeta** (desde la cuenta) son transferencias, no gasto: el gasto son las compras de la tarjeta.
-  Si un SINPE Móvil o una transferencia sí es un gasto, elija una categoría de gasto en **Movimientos**; la app
-  recuerda ese destinatario para los próximos estados de cuenta.
+- **Los SINPE y transferencias enviados son gasto**, porque el presupuesto se paga tanto con tarjeta como
+  por transferencia. Caen en la categoría que indiquen las reglas (p. ej. "pizza" → Restaurantes) o, si no hay
+  pista, en **"SINPE y transferencias"**. Las **excepciones** que no suman al gasto se marcan eligiendo una
+  categoría del grupo **"No es gasto"** en Movimientos (o en la columna `categoria` de la hoja):
+  - **Pago de tarjeta** (asignada sola desde el estado bancario): el gasto ya son las compras de la tarjeta;
+  - **Entre cuentas propias**: el dinero sigue siendo de la familia;
+  - **Transferencia (no es gasto)**: cualquier otra excepción (p. ej. un préstamo que le devolverán).
+
+  La app recuerda el destinatario (p. ej. un SINPE Móvil a "Huevos" → Supermercado) para los meses siguientes.
+  Los SINPE que versiones anteriores dejaban como "Transferencias" pasan solos a gasto.
 - **"Ahorro e inversión"** se muestra separado del gasto de consumo; los traslados a cuentas de ahorro
   (`DTR:Ahorros…`) caen ahí.
 - **Privacidad**: este repositorio es público y **no contiene datos personales**. Los movimientos

@@ -127,6 +127,7 @@ function importarCorreos(dias) {
         });
         if (!mov) return;
         mov.categoria = Presupuesto.categorizar(mov, reglas);
+        mov.tipo = Presupuesto.tipoSegunCategoria(mov.tipo, mov.categoria);
         existentes[id] = true;
         nuevos.push(mov);
       });
@@ -150,17 +151,50 @@ function importarCorreos(dias) {
   return nuevos.length;
 }
 
-/** Vuelve a categorizar todos los movimientos según la hoja Reglas. */
+/**
+ * Vuelve a categorizar todos los movimientos según la hoja Reglas. Respeta las excepciones marcadas a mano
+ * con una categoría de "no es gasto" (Pago de tarjeta, Entre cuentas propias, Transferencia (no es gasto)).
+ */
 function recategorizarTodo() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
   var reglas = leerReglas_(ss);
   var movs = leerMovimientos_(hoja);
   if (!movs.length) return;
-  var colCat = COLUMNAS.indexOf('categoria') + 1;
-  hoja.getRange(2, colCat, movs.length, 1)
-    .setValues(movs.map(function (m) { return [Presupuesto.categorizar(m, reglas)]; }));
+  movs.forEach(function (m) {
+    if (m.tipo === 'transferencia' && Presupuesto.CATEGORIAS_TRANSFERENCIA.indexOf(m.categoria) >= 0) return;
+    if (m.tipo === 'transferencia') m.tipo = 'gasto';
+    m.categoria = Presupuesto.categorizar(m, reglas);
+    Presupuesto.normalizarTipo(m, reglas);
+  });
+  escribirTipoYCategoria_(hoja, movs);
   actualizarResumen();
+}
+
+/**
+ * Todo SINPE o transferencia enviada es gasto, salvo que su categoría sea de "no es gasto". Pasa a gasto los
+ * SINPE que versiones anteriores guardaban como "Transferencias", y ajusta el tipo si se cambió la categoría
+ * a mano en la hoja (p. ej. a "Entre cuentas propias").
+ */
+function normalizarTipos_(ss) {
+  var hoja = ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS);
+  var movs = leerMovimientos_(hoja);
+  var reglas = leerReglas_(ss);
+  var cambios = 0;
+  movs.forEach(function (m) { if (Presupuesto.normalizarTipo(m, reglas)) cambios++; });
+  if (cambios) escribirTipoYCategoria_(hoja, movs);
+  return cambios;
+}
+
+/** Escribe tipo y categoria (columnas contiguas) en la fila de cada movimiento. */
+function escribirTipoYCategoria_(hoja, movs) {
+  var colTipo = COLUMNAS.indexOf('tipo') + 1;
+  var n = hoja.getLastRow() - 1;
+  if (n < 1) return;
+  var rango = hoja.getRange(2, colTipo, n, 2);
+  var valores = rango.getValues();
+  movs.forEach(function (m) { valores[m._fila - 2] = [m.tipo, m.categoria]; });
+  rango.setValues(valores);
 }
 
 // ---------------------------------------------------------------- Resumen
@@ -172,6 +206,8 @@ function recategorizarTodo() {
 function actualizarResumen() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   asegurarAjuste_(ss, '_diaCorte', CONFIG.DIA_CORTE_PREDETERMINADO);
+  asegurarAjuste_(ss, 'SINPE y transferencias', 0);
+  normalizarTipos_(ss);
   actualizarColumnasMes_(ss);
   var movs = leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS));
   var diaCorte = 0; // mes calendario
@@ -179,7 +215,7 @@ function actualizarResumen() {
   var hoja = obtenerHoja_(ss, CONFIG.HOJA_RESUMEN);
   hoja.clear();
 
-  var filas = [['Mes calendario', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'Transferencias enviadas', 'Balance', '% ahorro']];
+  var filas = [['Mes calendario', 'Ingresos', 'Gastos', 'Ahorro/Inversión', 'No es gasto (pagos de tarjeta…)', 'Balance', '% ahorro']];
   Presupuesto.mesesDisponibles(movs, diaCorte).forEach(function (mes) {
     var r = Presupuesto.resumenMes(movs, mes, opciones);
     filas.push([Presupuesto.etiquetaPeriodo(mes, diaCorte), r.ingresos, r.gastos, r.ahorro, r.transferencias, r.balance,
@@ -230,7 +266,10 @@ function doGet(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     salida = {
       generado: new Date().toISOString(),
-      movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)),
+      movimientos: leerMovimientos_(ss.getSheetByName(CONFIG.HOJA_MOVIMIENTOS)).map(function (m) {
+        delete m._fila;
+        return m;
+      }),
       presupuestos: leerPresupuestos_(ss),
       tipoCambio: leerTipoCambio_(ss),
       diaCorte: leerDiaCorte_(ss)
@@ -312,8 +351,9 @@ function filaDe_(m, tc, diaCorte) {
 function leerMovimientos_(hoja) {
   if (!hoja || hoja.getLastRow() < 2) return [];
   var datos = hoja.getRange(2, 1, hoja.getLastRow() - 1, COLUMNAS.length).getValues();
-  return datos.filter(function (f) { return f[0]; }).map(function (f) {
-    var m = {};
+  return datos.map(function (f, i) { return { f: f, fila: i + 2 }; }).filter(function (x) { return x.f[0]; }).map(function (x) {
+    var f = x.f;
+    var m = { _fila: x.fila };
     COLUMNAS.forEach(function (c, i) { m[c] = f[i]; });
     if (m.fecha instanceof Date) {
       m.fecha = Utilities.formatDate(m.fecha, 'America/Costa_Rica', "yyyy-MM-dd'T'HH:mm");
