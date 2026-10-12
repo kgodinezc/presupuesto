@@ -59,8 +59,9 @@
     });
   }
   function diaCorte() { return +estado.ajustes.diaCorte || 0; }
-  function nombrePeriodo(clave) { return P.etiquetaPeriodo(clave, diaCorte()); }
-  function periodoDeFecha(fecha) { return P.periodoDe(fecha, diaCorte()); }
+  /** Mes calendario 'YYYY-MM' de una fecha. El Resumen y la lista de movimientos usan meses calendario. */
+  function mesDeFecha(fecha) { return String(fecha || '').slice(0, 7); }
+  function nombreMes(clave) { return P.etiquetaPeriodo(clave, 0); }   // "Octubre 2026"
   function hoyISO() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -71,7 +72,17 @@
     if (!clave) return '';
     return P.nombreMesCorte(clave, 0).slice(0, 3) + ' ' + clave.slice(0, 4);
   }
+  /** "Oct 2026": mes calendario del movimiento. */
+  function mesCalendarioCorto(m) {
+    var clave = mesDeFecha(m.fecha);
+    return clave ? nombreMes(clave).slice(0, 3) + ' ' + clave.slice(0, 4) : '';
+  }
+  /** Resumen: por mes calendario. */
   function opciones() {
+    return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos, diaCorte: 0 };
+  }
+  /** Estado de cuenta: por periodo de corte de la tarjeta. */
+  function opcionesCorte() {
     return { tipoCambio: estado.ajustes.tipoCambio, presupuestos: estado.presupuestos, diaCorte: diaCorte() };
   }
   /** Categorías de gasto: las predeterminadas más las propias que tenga el presupuesto (p. ej. de la hoja). */
@@ -152,14 +163,14 @@
   // ------------------------------------------------------------ Render: Resumen
 
   function renderMeses() {
-    var meses = P.mesesDisponibles(estado.movimientos, diaCorte());
-    var actual = periodoDeFecha(hoyISO());
+    var meses = P.mesesDisponibles(estado.movimientos, 0);
+    var actual = mesDeFecha(hoyISO());
     if (meses.indexOf(actual) < 0) { meses.push(actual); meses.sort().reverse(); }
     if (!estado.mes || meses.indexOf(estado.mes) < 0) {
-      estado.mes = P.mesesDisponibles(estado.movimientos, diaCorte())[0] || actual;
+      estado.mes = P.mesesDisponibles(estado.movimientos, 0)[0] || actual;
     }
     $('#mes').innerHTML = meses.map(function (m) {
-      return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombrePeriodo(m) + '</option>';
+      return '<option value="' + m + '"' + (m === estado.mes ? ' selected' : '') + '>' + nombreMes(m) + '</option>';
     }).join('');
   }
 
@@ -170,7 +181,7 @@
     var kpis = [
       { e: 'Ingresos', v: crc(r.ingresos), c: 'pos', s: r.porIngreso.length + ' fuente(s)' },
       { e: 'Gastos', v: crc(r.gastos), c: 'neg', s: r.presupuestoTotal ? pct(r.gastos / r.presupuestoTotal) + ' del presupuesto' : '' },
-      { e: 'Balance del periodo', v: crc(r.balance), c: r.balance >= 0 ? 'pos' : 'neg', s: 'Ingresos − gastos − ahorro' },
+      { e: 'Balance del mes', v: crc(r.balance), c: r.balance >= 0 ? 'pos' : 'neg', s: 'Ingresos − gastos − ahorro' },
       { e: 'Tasa de ahorro', v: pct(r.tasaAhorro), c: (r.tasaAhorro || 0) >= 0.1 ? 'pos' : 'neg', s: 'Meta sugerida: 10–20%' }
     ];
     if (r.ahorro) kpis.push({ e: 'Ahorro e inversión', v: crc(r.ahorro), c: '', s: 'Separado del gasto' });
@@ -211,7 +222,7 @@
     if (!serie.length) { $('#tendencia').innerHTML = ''; return; }
     var max = Math.max.apply(null, serie.map(function (s) { return Math.max(s.ingresos, s.gastos); })) || 1;
     $('#tendencia').innerHTML = '<div class="tendencia">' + serie.map(function (s) {
-      return '<div class="mes" title="' + nombrePeriodo(s.mes) + ': ingresos ' + crc(s.ingresos) + ', gastos ' + crc(s.gastos) + '">' +
+      return '<div class="mes" title="' + nombreMes(s.mes) + ': ingresos ' + crc(s.ingresos) + ', gastos ' + crc(s.gastos) + '">' +
         '<div class="barras"><div class="b i" style="height:' + (s.ingresos / max * 100) + '%"></div>' +
         '<div class="b g" style="height:' + (s.gastos / max * 100) + '%"></div></div>' +
         '<span class="lbl">' + P.etiquetaPeriodo(s.mes, 0).slice(0, 3) + '</span></div>';
@@ -235,7 +246,7 @@
     var tipo = $('#f-tipo').value;
     var cat = $('#f-categoria').value;
     var lista = estado.movimientos.filter(function (m) {
-      if (!$('#f-todos').checked && P.periodoMovimiento(m, diaCorte()) !== estado.mes) return false;
+      if (!$('#f-todos').checked && mesDeFecha(m.fecha) !== estado.mes) return false;
       if (tipo && m.tipo !== tipo) return false;
       if (cat && m.categoria !== cat) return false;
       if (texto && P.normalizarTexto((m.descripcion || '') + ' ' + (m.comercio || '')).indexOf(texto) < 0) return false;
@@ -251,6 +262,7 @@
       var sub = [m.tarjeta, m.ciudad, m.tipo === 'transferencia' ? 'no suma al gasto' : ''].filter(Boolean).join(' · ');
       return '<tr class="' + (m.excluir ? 'excluido' : '') + '">' +
         '<td>' + esc(String(m.fecha).slice(0, 10).split('-').reverse().slice(0, $('#f-todos').checked ? 3 : 2).join('/')) + '</td>' +
+        '<td class="mes-corte">' + esc(mesCalendarioCorto(m)) + '</td>' +
         '<td class="mes-corte">' + esc(mesCorteCorto(m)) + '</td>' +
         '<td class="desc">' + esc(m.descripcion) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' +
         '<td><select data-id="' + esc(m.id) + '" class="sel-cat">' + opts + '</select></td>' +
@@ -259,7 +271,7 @@
         (m.excluir ? 'Incluir en el resumen' : 'Excluir del resumen') + '">' + (m.excluir ? '↩️' : '🚫') + '</button>' +
         (m.manual ? '<button class="icono-btn" data-borrar="' + esc(m.id) + '" title="Eliminar">🗑️</button>' : '') +
         '</td></tr>';
-    }).join('') || '<tr><td colspan="6" class="ayuda">No hay movimientos con estos filtros.</td></tr>';
+    }).join('') || '<tr><td colspan="7" class="ayuda">No hay movimientos con estos filtros.</td></tr>';
 
     var tc = estado.ajustes.tipoCambio;
     var total = lista.filter(function (m) { return !m.excluir; }).reduce(function (s, m) {
@@ -281,7 +293,7 @@
     var total = categoriasGasto().reduce(function (s, c) {
       return s + (c.esAhorro ? 0 : (estado.presupuestos[c.nombre] || 0));
     }, 0);
-    $('#total-presupuesto').textContent = 'Total de gastos presupuestados: ' + crc(total) + ' por periodo.' +
+    $('#total-presupuesto').textContent = 'Total de gastos presupuestados: ' + crc(total) + ' por mes.' +
       (estado.ajustes.url && estado.ajustes.token
         ? ' Con la hoja de Google conectada, el presupuesto se toma de su pestaña Presupuesto: edítelo allá.'
         : '');
@@ -362,7 +374,7 @@
       editado: true
     };
     fusionar([mov]);
-    estado.mes = periodoDeFecha(f.fecha.value);
+    estado.mes = mesDeFecha(f.fecha.value);
     guardar(); render();
     f.descripcion.value = ''; f.monto.value = '';
     aviso('Movimiento agregado.');
@@ -378,7 +390,7 @@
     // id estable para no duplicar si se pega dos veces
     mov.id = 'pegado-' + [mov.fecha, mov.comercio, mov.monto, mov.autorizacion || mov.referencia].join('|');
     var nuevos = fusionar([mov]);
-    estado.mes = periodoDeFecha(mov.fecha);
+    estado.mes = mesDeFecha(mov.fecha);
     guardar(); render();
     $('#correo-resultado').innerHTML = '<p class="ayuda">' + (nuevos ? '✅ Agregado: ' : 'Ya existía: ') +
       esc(mov.descripcion) + ' · ' + montoOriginal(mov) + ' · ' + esc(mov.categoria) + '</p>';
@@ -513,8 +525,8 @@
   $('#dia-corte').addEventListener('change', function (e) {
     var v = parseInt(e.target.value, 10);
     if (v >= 0 && v <= 31) {
-      estado.ajustes.diaCorte = v; estado.mes = '';
-      guardar(); render(); aviso(v ? 'Periodos del ' + (v + 1) + ' al ' + v + ' de cada mes.' : 'Periodos por mes calendario.');
+      estado.ajustes.diaCorte = v;
+      guardar(); render(); aviso(v ? 'Mes de corte: del ' + (v + 1) + ' al ' + v + ' de cada mes.' : 'Sin día de corte: el mes de corte será el mes calendario.');
     }
   });
 
@@ -554,12 +566,13 @@
   });
 
   $('#btn-exportar-csv').addEventListener('click', function () {
-    var cols = ['fecha', 'mesCorte', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
+    var cols = ['fecha', 'mesCalendario', 'mesCorte', 'tipo', 'categoria', 'descripcion', 'monto', 'moneda', 'montoCRC', 'tarjeta', 'fuente'];
     var tc = estado.ajustes.tipoCambio;
     var filas = [cols.join(',')].concat(estado.movimientos.map(function (m) {
       var fila = Object.assign({}, m, {
         montoCRC: Math.round(P.aColones(m, tc) * 100) / 100,
-        mesCorte: P.nombreMesCorte(P.periodoMovimiento(m, diaCorte()), diaCorte())
+        mesCorte: P.nombreMesCorte(P.periodoMovimiento(m, diaCorte()), diaCorte()),
+        mesCalendario: nombreMes(mesDeFecha(m.fecha))
       });
       return cols.map(function (c) { return '"' + String(fila[c] == null ? '' : fila[c]).replace(/"/g, '""') + '"'; }).join(',');
     }));
@@ -636,9 +649,8 @@
         ec.fechaCorte.split('-').reverse().join('/') + '.';
       if (diaCorte() !== dia) {
         estado.ajustes.diaCorte = dia;
-        msj += ' Los periodos ahora van del ' + (dia + 1) + ' al ' + dia + ' de cada mes, como su tarjeta.';
+        msj += ' Día de corte ajustado a ' + dia + ': el mes de corte de cada movimiento va del ' + (dia + 1) + ' al ' + dia + '.';
       }
-      estado.mes = ec.clave;
       guardar(); render(); renderDatos();
       $('#ec-estado').textContent = msj;
     }).catch(function (err) {
@@ -687,7 +699,7 @@
       porCat[cat] = (porCat[cat] || 0) + (x.cargo.esCredito ? -1 : 1) * aCRC(x.cargo.monto, x.cargo.moneda);
     });
     var totalEstado = Object.keys(porCat).reduce(function (s, k) { return s + porCat[k]; }, 0);
-    var rApp = P.resumenMes(estado.movimientos, ec.clave, opciones());
+    var rApp = P.resumenMes(estado.movimientos, ec.clave, opcionesCorte());
 
     var html = '';
 
@@ -811,7 +823,6 @@
       var ids = Array.prototype.map.call(document.querySelectorAll('.ec-sel:checked'), function (x) { return x.value; });
       var r = P.aplicarConciliacion(datos.ec, datos.c, estado.movimientos, ids, estado.reglas);
       estado.movimientos = r.movimientos.sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; });
-      estado.mes = datos.ec.clave;
       guardar(); render();
       aviso('Listo: ' + r.agregados + ' cargos agregados, ' + r.asignados + ' movimientos asignados al periodo' +
         (r.movidos ? ', ' + r.movidos + ' pasan al siguiente' : '') + '.');
