@@ -154,6 +154,11 @@
     return n;
   }
 
+  /** "SINPE enviado" de los correos, "Sin descripción", "Cuenta 123…": no identifican un destinatario. */
+  function esComercioGenerico(clave) {
+    return !clave || /^(SINPE ENVIADO|SIN DESCRIPCION|CUENTA)$/.test(clave);
+  }
+
   /** Elegir una categoría de transferencia convierte un gasto en transferencia y viceversa. */
   function tipoParaCategoria(mov, categoria) {
     return P.tipoSegunCategoria(mov.tipo, categoria);
@@ -169,8 +174,7 @@
     // No se aprenden nombres genéricos ("SINPE enviado" de los correos, "Sin descripción", "Cuenta 123…"):
     // la regla cambiaría todos los SINPE, no solo los de ese destinatario.
     var clave = P.claveComercio(mov.comercio);
-    var generico = !clave || /^(SINPE ENVIADO|SIN DESCRIPCION|CUENTA)$/.test(clave);
-    if (recordar && !generico) {
+    if (recordar && !esComercioGenerico(clave)) {
       estado.reglas[clave] = categoria;
       var otros = 0;
       estado.movimientos.forEach(function (m) {
@@ -835,7 +839,7 @@
       kpi('Cargos en el estado', fmtDoble(c.resumen.cargosEstado), '', (c.coinciden.length + c.soloEstado.length) + ' cargos') +
       kpi('Ya registrados en la app', fmtDoble(c.resumen.coinciden), 'pos', c.coinciden.length + ' coinciden') +
       kpi('Faltan en su presupuesto', fmtDoble(c.resumen.soloEstado), c.soloEstado.length ? 'neg' : 'pos', c.soloEstado.length + ' cargos sin correo') +
-      kpi('En la app, no en el estado', fmtDoble(c.resumen.soloApp), '', c.soloApp.length + ' movimientos') +
+      kpi('Compras para el próximo estado', fmtDoble(c.resumen.soloApp), '', c.soloApp.length + ' compras con tarjeta') +
       '</div>';
 
     // Comparación con el presupuesto
@@ -873,7 +877,7 @@
 
     // En la app pero no en el estado
     if (c.soloApp.length) {
-      html += '<div class="tarjeta"><h2>En la app, pero no en este estado</h2><div class="tabla-envoltura"><table class="tabla">' +
+      html += '<div class="tarjeta"><h2>Compras con tarjeta que no están en este estado</h2><div class="tabla-envoltura"><table class="tabla">' +
         '<thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th>Qué significa</th></tr></thead><tbody>' +
         c.soloApp.map(function (x) {
           var m = x.movimiento;
@@ -945,6 +949,9 @@
   // ------------------------------------------------------------ Estado de cuenta bancario (PDF)
 
   var ebActual = '';         // clave del estado bancario mostrado: 'YYYY-MM|moneda|cuenta'
+  // Elecciones antes de aplicar, por línea; sobreviven a los re-render (p. ej. la sincronización automática)
+  var ebElecciones = {};     // id de línea -> categoría elegida
+  var ebOmitidos = {};       // id de línea -> true si se desmarcó
 
   function ebClave(eb) { return eb.clave + '|' + eb.moneda + '|' + eb.cuenta; }
   /** Últimos 4 dígitos de las tarjetas de crédito conocidas (sus compras no salen de la cuenta). */
@@ -1012,15 +1019,21 @@
     // Movimientos que faltan
     if (c.soloBanco.length) {
       html += '<div class="tarjeta"><h2>Movimientos de la cuenta que no están en su presupuesto</h2>' +
-        '<p class="ayuda">No llegaron por correo. Marque los que quiere agregar; puede cambiar la categoría después en Movimientos.</p>' +
+        '<p class="ayuda">No llegaron por correo. Antes de aplicar, elija el rubro del presupuesto de cada uno (p. ej. un SINPE ' +
+        'por huevos → Supermercado) o márquelo en "No es gasto" si es a una cuenta suya. La app recuerda el destinatario para los ' +
+        'próximos meses y aplica la misma categoría a los demás envíos a ese destinatario en esta lista.</p>' +
         '<div class="tabla-envoltura"><table class="tabla"><thead><tr>' +
         '<th><input type="checkbox" id="eb-todos" checked aria-label="Seleccionar todos"></th><th>Fecha</th><th>Descripción</th>' +
         '<th>Categoría</th><th class="num">Monto</th></tr></thead><tbody>' +
         c.soloBanco.map(function (x) {
           var l = x.linea, s = x.sugerencia;
-          return '<tr><td><input type="checkbox" class="eb-sel" value="' + esc(l.id) + '" checked></td><td>' + fechaCorta(l.fecha) +
+          var cat = ebElecciones[l.id] || s.categoria;
+          var opts = opcionesCategoria({ tipo: P.tipoSegunCategoria(s.tipo, cat), categoria: cat });
+          return '<tr><td><input type="checkbox" class="eb-sel" value="' + esc(l.id) + '"' + (ebOmitidos[l.id] ? '' : ' checked') +
+            '></td><td>' + fechaCorta(l.fecha) +
             '</td><td class="desc">' + esc(s.descripcion) + '<small>' + esc(l.concepto) + ' · ref. ' + esc(l.referencia) + '</small></td><td>' +
-            P.iconoDe(s.categoria) + ' ' + esc(s.categoria) + (s.tipo === 'transferencia' ? '<small class="ayuda"> · no suma al gasto</small>' : '') +
+            '<select class="eb-cat" data-id="' + esc(l.id) + '" data-clave="' + esc(P.claveComercio(s.comercio)) + '" data-entrada="' +
+            (l.esCredito ? '1' : '') + '" aria-label="Categoría">' + opts + '</select>' +
             '</td><td class="num ' + (l.esCredito ? 'pos' : 'neg') + '">' + (l.esCredito ? '+ ' : '− ') + m$(l.monto) + '</td></tr>';
         }).join('') + '</tbody></table></div></div>';
     }
@@ -1040,16 +1053,8 @@
         }).join('') + '</tbody></table></div></div>';
     }
 
-    if (c.soloApp.length) {
-      html += '<div class="tarjeta"><h2>En la app, pero no en esta cuenta</h2><div class="tabla-envoltura"><table class="tabla">' +
-        '<thead><tr><th>Fecha</th><th>Descripción</th><th class="num">Monto</th></tr></thead><tbody>' +
-        c.soloApp.map(function (m) {
-          return '<tr><td>' + fechaCorta(m.fecha) + '</td><td class="desc">' + esc(m.descripcion) + '</td><td class="num">' + montoOriginal(m) + '</td></tr>';
-        }).join('') + '</tbody></table></div><p class="ayuda">🔎 Pueden ser de otra cuenta (p. ej. la de dólares) o de otro mes.</p></div>';
-    }
-
     html += '<div class="tarjeta"><button id="eb-aplicar" class="primario">Aplicar conciliación</button>' +
-      '<p class="ayuda">Agrega los movimientos marcados y vincula los que ya estaban. Una transferencia de correo que el banco ' +
+      '<p class="ayuda">Agrega los movimientos marcados con la categoría elegida y vincula los que ya estaban. Un SINPE de correo que el banco ' +
       'identifica como pago de tarjeta o traslado a ahorros toma esa categoría.</p>' +
       '<button id="eb-borrar" class="peligro">Quitar este estado de cuenta</button></div>';
 
@@ -1058,9 +1063,29 @@
   }
 
   $('#eb-resultado').addEventListener('change', function (e) {
-    if (e.target.id === 'eb-todos') {
-      document.querySelectorAll('.eb-sel').forEach(function (x) { x.checked = e.target.checked; });
-    } else if (e.target.id === 'eb-selector') {
+    var t = e.target;
+    if (t.id === 'eb-todos') {
+      document.querySelectorAll('.eb-sel').forEach(function (x) {
+        x.checked = t.checked;
+        if (t.checked) delete ebOmitidos[x.value]; else ebOmitidos[x.value] = true;
+      });
+    } else if (t.classList.contains('eb-sel')) {
+      if (t.checked) delete ebOmitidos[t.value]; else ebOmitidos[t.value] = true;
+    } else if (t.classList.contains('eb-cat')) {
+      // La misma categoría para los demás envíos a ese destinatario (p. ej. todos los SINPE "Huevos")
+      var otros = 0;
+      ebElecciones[t.dataset.id] = t.value;
+      if (!esComercioGenerico(t.dataset.clave)) {
+        document.querySelectorAll('.eb-cat').forEach(function (x) {
+          if (x === t || x.dataset.clave !== t.dataset.clave || x.dataset.entrada !== t.dataset.entrada) return;
+          if (!Array.prototype.some.call(x.options, function (o) { return o.value === t.value; })) return;
+          x.value = t.value;
+          ebElecciones[x.dataset.id] = t.value;
+          otros++;
+        });
+      }
+      if (otros) aviso('También se asignó ' + t.value + ' a ' + otros + ' movimiento(s) del mismo destinatario.');
+    } else if (t.id === 'eb-selector') {
       ebActual = e.target.value; renderEstadoBancario();
     }
   });
@@ -1069,7 +1094,17 @@
     if (!datos) return;
     if (e.target.id === 'eb-aplicar') {
       var ids = Array.prototype.map.call(document.querySelectorAll('.eb-sel:checked'), function (x) { return x.value; });
-      var r = P.aplicarConciliacionBanco(datos.eb, datos.c, estado.movimientos, ids);
+      // Recordar el destinatario de las categorías elegidas a mano, para los próximos estados de cuenta
+      datos.c.soloBanco.forEach(function (x) {
+        var cat = ebElecciones[x.linea.id];
+        var clave = P.claveComercio(x.sugerencia.comercio);
+        if (cat && cat !== x.sugerencia.categoria && ids.indexOf(x.linea.id) >= 0 && !esComercioGenerico(clave)) {
+          estado.reglas[clave] = cat;
+        }
+      });
+      var r = P.aplicarConciliacionBanco(datos.eb, datos.c, estado.movimientos, ids, ebElecciones);
+      ebElecciones = {};
+      ebOmitidos = {};
       estado.movimientos = r.movimientos.sort(function (a, b) { return a.fecha < b.fecha ? 1 : -1; });
       guardar(); render();
       aviso('Listo: ' + r.agregados + ' movimientos agregados, ' + r.vinculados + ' vinculados' +

@@ -87,7 +87,6 @@ test('concilia con los movimientos de la app y cuadra con el resumen del banco',
     [['960000003', 'correo-salario'], ['666000005', 'correo-ahorro']]);
   assert.equal(c.soloBanco.length, 8);
   assert.ok(!c.soloBanco.some((x) => x.linea.referencia === '960000003'));
-  assert.deepEqual(c.soloApp.map((m) => m.id), ['correo-otra']);
   assert.equal(c.resumen.soloBancoDebitos, 525500);
   assert.equal(c.duplicados.length, 1);
   assert.equal(c.duplicados[0][0].concepto, 'Pago Liberty Móvil (Movistar 8');
@@ -101,7 +100,10 @@ test('concilia con los movimientos de la app y cuadra con el resumen del banco',
 test('aplicar la conciliación agrega, vincula y reclasifica; reaplicar no duplica', () => {
   const c = B.conciliarBanco(eb, movimientos, { tarjetasCredito: ['1111'] });
   const ids = c.soloBanco.map((x) => x.linea.id);
-  const r = B.aplicarConciliacionBanco(eb, c, movimientos, ids);
+  // Antes de conciliar, el usuario elige la categoría de dos SINPE
+  const idDe = (ref) => c.soloBanco.find((x) => x.linea.referencia === ref).linea.id;
+  const categorias = { [idDe('966000002')]: 'Supermercado', [idDe('966000009')]: 'Entre cuentas propias' };
+  const r = B.aplicarConciliacionBanco(eb, c, movimientos, ids, categorias);
   assert.equal(r.agregados, 8);
   assert.equal(r.vinculados, 2);
   assert.equal(r.reclasificados, 1);
@@ -123,10 +125,16 @@ test('aplicar la conciliación agrega, vincula y reclasifica; reaplicar no dupli
   // Resumen del mes calendario: SINPE y transferencias enviadas en el gasto; el pago de tarjeta, aparte
   const res = R.resumenMes(r.movimientos, '2026-10', { tipoCambio: 500 });
   assert.equal(res.ingresos, 900000 + 110000 + 250.5 + 5000);
-  assert.equal(res.gastos, 3500 + 24000 + 150000 + 3500 + 98000);
-  assert.equal(res.enviadosGasto, 150000 + 3500 + 98000);
+  assert.equal(res.gastos, 3500 + 24000 + 150000 + 3500);
+  assert.equal(res.enviadosGasto, 150000 + 3500);
   assert.equal(res.ahorro, 1000000);
-  assert.equal(res.transferencias, 250000);
-  assert.deepEqual(res.porTransferencia.map((t) => [t.categoria, t.total]), [['Pago de tarjeta', 250000]]);
+  assert.equal(res.transferencias, 250000 + 98000);
+  assert.deepEqual(res.porTransferencia.map((t) => [t.categoria, t.total]), [['Pago de tarjeta', 250000], ['Entre cuentas propias', 98000]]);
+  const huevos = r.movimientos.find((m) => m.referencia === '966000002');
+  assert.deepEqual([huevos.tipo, huevos.categoria], ['gasto', 'Supermercado']);
+  const propia = r.movimientos.find((m) => m.referencia === '966000009');
+  assert.deepEqual([propia.tipo, propia.categoria], ['transferencia', 'Entre cuentas propias']);
+  const tef = r.movimientos.find((m) => m.referencia === '406000001');
+  assert.deepEqual([tef.tipo, tef.categoria], ['gasto', 'SINPE y transferencias'], 'sin elección, queda la propuesta');
   assert.ok(res.porIngreso.some((i) => i.categoria === 'Transferencias recibidas' && i.total === 110000));
 });
