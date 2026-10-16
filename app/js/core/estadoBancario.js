@@ -287,19 +287,6 @@
     coinciden.forEach(function (x) { x.sugerencia = clasificarLinea(x.linea, opciones.reglas); });
     soloBanco.forEach(function (x) { x.sugerencia = clasificarLinea(x.linea, opciones.reglas); });
 
-    // Movimientos de la app (fuera de tarjetas de crédito) del mes que no aparecen en el estado
-    var inicio = eb.clave + '-01';
-    var soloApp = movimientos.filter(function (m) {
-      if (usados[m.id] || m.manual || m.excluir) return false;
-      if ((m.moneda || 'CRC') !== eb.moneda) return false;
-      if (m.tipo !== 'ingreso' && m.tipo !== 'transferencia') return false;
-      if (m.refBanco || /^eb-/.test(m.id)) return false;
-      var t4 = ultimos4(m.tarjeta);
-      if (t4 && credito.indexOf(t4) >= 0) return false;
-      var f = String(m.fecha).slice(0, 10);
-      return f >= inicio && f <= eb.fechaCorte;
-    });
-
     function suma(lista, cred) {
       return redondear(lista.reduce(function (s, x) { return s + (x.linea.esCredito === cred ? x.linea.monto : 0); }, 0));
     }
@@ -339,7 +326,6 @@
       coinciden: coinciden,
       soloBanco: soloBanco,
       duplicados: duplicados,
-      soloApp: soloApp,
       porCategoria: Object.keys(porCategoria).map(function (k) { return porCategoria[k]; })
         .sort(function (a, b) { return (b.entrada - a.entrada) || (b.total - a.total); }),
       resumen: {
@@ -352,6 +338,13 @@
         soloBancoCreditos: suma(soloBanco, true)
       }
     };
+  }
+
+  /** Propuesta del banco con la categoría que eligió el usuario, si eligió una. */
+  function sugerenciaElegida(x, categorias) {
+    var cat = categorias && categorias[x.linea.id];
+    if (!cat || cat === x.sugerencia.categoria) return x.sugerencia;
+    return Object.assign({}, x.sugerencia, { categoria: cat, tipo: Cat.tipoSegunCategoria(x.sugerencia.tipo, cat) });
   }
 
   /** Movimiento a partir de una línea del estado bancario. */
@@ -377,8 +370,10 @@
    *  - los que coinciden quedan vinculados a su línea (refBanco); si eran una transferencia genérica
    *    sin editar, toman la clasificación del banco (p. ej. pago de tarjeta o traslado a ahorros);
    *  - se agregan las líneas elegidas (idsAgregar) que faltaban.
+   *  - categorias ({idLinea: categoría}) reemplaza la categoría propuesta de las líneas que se agregan; el tipo
+   *    sigue a la categoría (una de "no es gasto" la deja como transferencia).
    */
-  function aplicarConciliacionBanco(eb, conc, movimientos, idsAgregar) {
+  function aplicarConciliacionBanco(eb, conc, movimientos, idsAgregar, categorias) {
     var copia = movimientos.map(function (m) { return Object.assign({}, m); });
     var porId = {};
     copia.forEach(function (m) { porId[m.id] = m; });
@@ -406,7 +401,7 @@
     var agregados = 0;
     conc.soloBanco.forEach(function (x) {
       if (!elegir[x.linea.id] || porId[x.linea.id]) return;
-      copia.push(movimientoDesdeLinea(x.linea, x.sugerencia, eb));
+      copia.push(movimientoDesdeLinea(x.linea, sugerenciaElegida(x, categorias), eb));
       agregados++;
     });
     return { movimientos: copia, agregados: agregados, vinculados: vinculados, reclasificados: reclasificados };

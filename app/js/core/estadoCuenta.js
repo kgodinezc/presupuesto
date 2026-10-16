@@ -245,10 +245,12 @@
     var periodo = estado.periodo;
     var usados = {};
 
-    // Movimientos de tarjeta en el periodo (con holgura para la fecha de registro)
+    // Compras con las tarjetas de este estado en el periodo (con holgura para la fecha de registro).
+    // SINPE, transferencias y gastos en efectivo no pasan por la tarjeta: se concilian con el estado bancario.
     var candidatos = movimientos.filter(function (m) {
       if (m.tipo !== 'gasto' && m.tipo !== 'reembolso') return false;
       if (m.fuente === 'Estado de cuenta') return false;
+      if (tarjetas.indexOf(ultimos4(m.tarjeta)) < 0) return false;
       // Ya asignado a otro estado de cuenta (p. ej. pasó al periodo siguiente)
       if (m.periodo && m.periodo !== estado.clave) return false;
       var f = String(m.fecha).slice(0, 10);
@@ -266,8 +268,7 @@
           if (usados[m.id]) return;
           if (m.moneda !== c.moneda || Math.abs(m.monto - c.monto) > 0.01) return;
           if ((m.tipo === 'reembolso') !== c.esCredito) return;
-          var t4 = ultimos4(m.tarjeta);
-          if (t4 && t4 !== c.tarjeta) return;
+          if (ultimos4(m.tarjeta) !== c.tarjeta) return;
           var dd = diasEntre(m.fecha, c.fecha);
           if (dd > tol) return;
           var puntaje = (3 - dd) + parecido(m.comercio || m.descripcion, c.comercio) * 2;
@@ -287,9 +288,7 @@
     var soloApp = candidatos.filter(function (m) {
       if (usados[m.id]) return false;
       var f = String(m.fecha).slice(0, 10);
-      if (f < periodo.inicio || f > periodo.fin) return false;
-      var t4 = ultimos4(m.tarjeta);
-      return !t4 || tarjetas.indexOf(t4) >= 0;
+      return f >= periodo.inicio && f <= periodo.fin;
     }).map(function (m) {
       return { movimiento: m, proximoEstado: diasEntre(m.fecha, periodo.fin) < tol };
     });

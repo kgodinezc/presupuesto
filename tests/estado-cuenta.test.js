@@ -66,7 +66,10 @@ test('conciliación: coinciden, faltan en la app, faltan en el estado y próximo
     { id: 'd', fecha: '2026-08-20T10:00', tipo: 'gasto', comercio: 'COBRO NO RECONOCIDO', monto: 5000, moneda: 'CRC', tarjeta: 'MASTER 2222' },
     { id: 'e', fecha: '2026-09-05T18:00', tipo: 'gasto', comercio: 'SUPER CERCA DEL CORTE', monto: 7000, moneda: 'CRC', tarjeta: 'MASTER 2222' },
     { id: 'f', fecha: '2026-08-15T10:00', tipo: 'gasto', comercio: 'OTRA TARJETA', monto: 1234, moneda: 'CRC', tarjeta: 'VISA 9999' },
-    { id: 't', fecha: '2026-08-29T09:00', tipo: 'transferencia', comercio: 'SINPE enviado', monto: 50000, moneda: 'CRC' }
+    { id: 't', fecha: '2026-08-29T09:00', tipo: 'transferencia', comercio: 'SINPE enviado', monto: 50000, moneda: 'CRC' },
+    // SINPE (gasto sin tarjeta) y gasto en efectivo: no son de la tarjeta, ni con el mismo monto que un cargo
+    { id: 's', fecha: '2026-08-21T10:00', tipo: 'gasto', comercio: 'SINPE enviado', monto: 5000, moneda: 'CRC', categoria: 'SINPE y transferencias' },
+    { id: 'm', fecha: '2026-08-10T12:00', tipo: 'gasto', comercio: 'Efectivo', monto: 8500, moneda: 'CRC', manual: true }
   ];
   const c = E.conciliar(ec, movs);
   assert.deepEqual(c.coinciden.map((x) => x.movimiento.id).sort(), ['a', 'b', 'c']);

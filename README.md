@@ -43,8 +43,9 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   (no se sube a ningún servidor) y se concilia cargo por cargo con sus movimientos:
   - cargos que **no llegaron por correo** (peajes Compass, servicios domiciliados, IVA de servicios
     digitales…) y se pueden agregar al presupuesto con un clic;
-  - movimientos de la app que **no aparecen** en el estado (compras cerca del corte que pasan al
-    siguiente periodo, anulaciones, posibles cobros duplicados);
+  - compras con tarjeta de la app que **no aparecen** en el estado (compras cerca del corte que pasan al
+    siguiente periodo, anulaciones, posibles cobros duplicados). Los SINPE y gastos en efectivo no se
+    comparan aquí: los SINPE se concilian con el estado bancario;
   - pagos a la tarjeta, intereses del periodo y **pago de contado**;
   - gasto por categoría según el estado **vs. presupuesto**.
 
@@ -57,7 +58,9 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
   - **entradas**: salario, transferencias recibidas (TEF, SINPE), intereses;
   - **salidas**: SINPE Móvil y transferencias enviadas (gasto), pagos de servicios (Liberty, ICE, AyA…),
     traslados a ahorros (Ahorro e inversión) y pagos de tarjeta (no son gasto);
-  - las que ya llegaron por correo se vinculan; las demás se agregan con un clic;
+  - las que ya llegaron por correo se vinculan; las demás se agregan con un clic, eligiendo **antes** el rubro
+    del presupuesto de cada una (o "No es gasto"). La app recuerda el destinatario y aplica la misma
+    categoría a los demás envíos a ese destinatario;
   - avisa de **posibles cobros duplicados** (mismo concepto y monto en 3 días o menos).
 
   El **Resumen** muestra las transferencias del mes (recibidas, enviadas, pagos de tarjeta) y las
