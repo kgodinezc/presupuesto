@@ -326,12 +326,38 @@
     return opcionesDe(categoriasPara(m.tipo === 'reembolso' ? 'gasto' : m.tipo), m.categoria);
   }
 
+  // Filtro de mes de la lista: 'todos', 'cal:YYYY-MM' (mes calendario) o 'corte:YYYY-MM' (mes de corte)
+  var filtroMes = '';
+
+  function renderFiltroMes() {
+    var cal = P.mesesDisponibles(estado.movimientos, 0);
+    var dia = diaCorte();
+    var corte = dia ? P.mesesDisponibles(estado.movimientos, dia) : [];
+    var valores = ['todos'].concat(cal.map(function (k) { return 'cal:' + k; }), corte.map(function (k) { return 'corte:' + k; }));
+    if (!filtroMes) filtroMes = estado.mes ? 'cal:' + estado.mes : '';
+    if (valores.indexOf(filtroMes) < 0) filtroMes = cal.length ? 'cal:' + cal[0] : '';
+    var opcion = function (v, txt) {
+      return '<option value="' + v + '"' + (v === filtroMes ? ' selected' : '') + '>' + esc(txt) + '</option>';
+    };
+    $('#f-mes').innerHTML = opcion('todos', 'Todos los meses') +
+      '<optgroup label="Mes calendario">' + cal.map(function (k) { return opcion('cal:' + k, nombreMes(k)); }).join('') + '</optgroup>' +
+      (corte.length ? '<optgroup label="Mes de corte de la tarjeta">' + corte.map(function (k) {
+        return opcion('corte:' + k, 'Corte ' + P.nombreMesCorte(k, dia));
+      }).join('') + '</optgroup>' : '');
+  }
+
+  function cumpleFiltroMes(m) {
+    if (filtroMes.indexOf('cal:') === 0) return mesDeFecha(m.fecha) === filtroMes.slice(4);
+    if (filtroMes.indexOf('corte:') === 0) return P.periodoMovimiento(m, diaCorte()) === filtroMes.slice(6);
+    return true;
+  }
+
   function renderMovimientos() {
     var texto = P.normalizarTexto($('#f-texto').value);
     var tipo = $('#f-tipo').value;
     var cat = $('#f-categoria').value;
     var lista = estado.movimientos.filter(function (m) {
-      if (!$('#f-todos').checked && mesDeFecha(m.fecha) !== estado.mes) return false;
+      if (!cumpleFiltroMes(m)) return false;
       if (tipo && m.tipo !== tipo) return false;
       if (cat && m.categoria !== cat) return false;
       if (texto && P.normalizarTexto((m.descripcion || '') + ' ' + (m.comercio || '')).indexOf(texto) < 0) return false;
@@ -345,7 +371,7 @@
       var sub = [m.tarjeta, m.ciudad, m.cuenta ? 'Cuenta ···' + m.cuenta : '',
         m.tipo === 'transferencia' ? 'no suma al gasto' : ''].filter(Boolean).join(' · ');
       return '<tr class="' + (m.excluir ? 'excluido' : '') + '">' +
-        '<td>' + esc(String(m.fecha).slice(0, 10).split('-').reverse().slice(0, $('#f-todos').checked ? 3 : 2).join('/')) + '</td>' +
+        '<td>' + esc(String(m.fecha).slice(0, 10).split('-').reverse().slice(0, filtroMes.indexOf('cal:') === 0 ? 2 : 3).join('/')) + '</td>' +
         '<td class="mes-corte">' + esc(mesCalendarioCorto(m)) + '</td>' +
         '<td class="mes-corte">' + esc(mesCorteCorto(m)) + '</td>' +
         '<td class="desc">' + esc(m.descripcion) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</td>' +
@@ -404,6 +430,7 @@
     renderMeses();
     renderResumen();
     renderFiltroCategorias();
+    renderFiltroMes();
     renderMovimientos();
     renderEstadoCuenta();
     renderEstadoBancario();
@@ -419,10 +446,15 @@
     });
   });
 
-  $('#mes').addEventListener('change', function (e) { estado.mes = e.target.value; guardar(); render(); });
-  ['#f-texto', '#f-tipo', '#f-categoria', '#f-todos'].forEach(function (s) {
+  $('#mes').addEventListener('change', function (e) {
+    estado.mes = e.target.value;
+    filtroMes = 'cal:' + estado.mes;   // la lista de movimientos sigue al mes del encabezado
+    guardar(); render();
+  });
+  ['#f-texto', '#f-tipo', '#f-categoria'].forEach(function (s) {
     $(s).addEventListener('input', renderMovimientos);
   });
+  $('#f-mes').addEventListener('change', function (e) { filtroMes = e.target.value; renderMovimientos(); });
 
   $('#lista').addEventListener('change', function (e) {
     if (!e.target.classList.contains('sel-cat')) return;

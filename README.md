@@ -35,6 +35,7 @@ App web (GitHub Pages) ──► Resumen del mes · gastos vs. presupuesto · al
 - **Mes calendario y mes de corte**: cada movimiento indica las dos cosas (columnas `mesCalendario` y
   `mesCorte` en la hoja, "Mes calendario" y "Mes de corte" en la app y en el CSV).
   - El **Resumen** (app y hoja) agrupa por **mes calendario**, es decir, por la fecha real del gasto.
+  - En **Movimientos**, el filtro de mes permite ver todos los meses, un mes calendario o un mes de corte.
   - El **mes de corte** sigue el día de corte de la tarjeta (`_diaCorte`; con 6, del 7 de un mes al 6 del
     siguiente) y es el que usa la pestaña **Estado de cuenta**. Igual que BAC, el periodo lleva el nombre
     del mes en que cierra: una compra del 2 de octubre es del mes calendario "Octubre 2026" y del corte
