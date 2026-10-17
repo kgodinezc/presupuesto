@@ -113,7 +113,7 @@ main { max-width: 1100px; margin: 0 auto; padding: 16px; }
 .leyenda i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 
 .filtros { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 8px; }
-@media (min-width: 700px) { .filtros { grid-template-columns: 2fr 1fr 1fr auto; } }
+@media (min-width: 700px) { .filtros { grid-template-columns: 2fr 1fr 1fr 1fr; } }
 .filtros .check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--suave); white-space: nowrap; }
 .filtros .check input { width: auto; }
 
